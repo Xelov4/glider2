@@ -102,48 +102,25 @@ class ImageAnalyzer:
         try:
             self.logger.debug(f"Détection de cartes dans {region_name}")
             
-            # NOUVEAU: APPROCHE 1 - MACHINE LEARNING (priorité absolue)
-            try:
-                from .card_ml_detector import CardMLDetector
-                ml_detector = CardMLDetector()
-                if ml_detector.is_trained:
-                    ml_cards = ml_detector.detect_cards_ml(image)
-                    if ml_cards:
-                        # Convertir les CardFeature en Card
-                        converted_cards = []
-                        for ml_card in ml_cards:
-                            card = Card(
-                                rank=ml_card.rank,
-                                suit=ml_card.suit,
-                                confidence=ml_card.confidence,
-                                position=(0, 0)
-                            )
-                            converted_cards.append(card)
-                        
-                        self.logger.debug(f"Cartes détectées par ML: {[f'{c.rank}{c.suit}' for c in converted_cards]}")
-                        return converted_cards
-            except Exception as e:
-                self.logger.debug(f"ML non disponible: {e}")
-            
-            # APPROCHE 2: DÉTECTION ULTRA-RAPIDE (priorité absolue)
+            # NOUVEAU: APPROCHE 1 - DÉTECTION ULTRA-RAPIDE (priorité absolue)
             fast_cards = self._detect_cards_ultra_fast(image)
             if fast_cards:
                 self.logger.debug(f"Cartes détectées ultra-rapide: {[f'{c.rank}{c.suit}' for c in fast_cards]}")
                 return fast_cards
             
-            # APPROCHE 3: OCR avec prétraitement optimisé
+            # APPROCHE 2: OCR avec prétraitement optimisé
             ocr_cards = self._detect_cards_ocr_optimized(image)
             if ocr_cards:
                 self.logger.debug(f"Cartes détectées par OCR: {[f'{c.rank}{c.suit}' for c in ocr_cards]}")
                 return ocr_cards
             
-            # APPROCHE 4: Détection par contours et analyse de forme
+            # APPROCHE 3: Détection par contours et analyse de forme
             contour_cards = self._detect_cards_by_contours(image)
             if contour_cards:
                 self.logger.debug(f"Cartes détectées par contours: {[f'{c.rank}{c.suit}' for c in contour_cards]}")
                 return contour_cards
             
-            # APPROCHE 5: Détection par couleur (rouge/noir)
+            # APPROCHE 4: Détection par couleur (rouge/noir)
             color_cards = self._detect_cards_by_color(image)
             if color_cards:
                 self.logger.debug(f"Cartes détectées par couleur: {[f'{c.rank}{c.suit}' for c in color_cards]}")
