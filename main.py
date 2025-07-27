@@ -641,7 +641,7 @@ class PokerAgent:
             
             # Mise à jour des stats de session
             if action in ['call', 'raise', 'all_in']:
-                self.stats['hands_played'] += 1
+                self.session_stats['hands_played'] += 1
             
         except Exception as e:
             self.logger.error(f"Erreur mise à jour stats: {e}")
@@ -700,7 +700,7 @@ class PokerAgent:
             # Calcul du profit
             if hasattr(self.game_state, 'my_stack') and hasattr(self.game_state, 'initial_stack'):
                 current_profit = self.game_state.my_stack - self.game_state.initial_stack
-                self.stats['total_profit'] = current_profit
+                self.session_stats['total_profit'] = current_profit
             
         except Exception as e:
             self.logger.error(f"Erreur mise à jour stats: {e}")
@@ -969,14 +969,14 @@ class PokerAgent:
             if 'action_buttons' in captured_regions:
                 buttons = self.button_detector.detect_available_actions(captured_regions['action_buttons'])
                 if buttons:
-                    # 🎯 BOUTONS VISIBLES = C'EST NOTRE TOUR (10 secondes max)
+                    # BOUTONS VISIBLES = C'EST NOTRE TOUR (10 secondes max)
                     button_names = [btn.name for btn in buttons]
-                    self.logger.info(f"🎯 BOUTONS DÉTECTÉS: {button_names} - C'EST NOTRE TOUR!")
+                    self.logger.info(f"BOUTONS DETECTES: {button_names} - C'EST NOTRE TOUR!")
                     return "OUR_TURN"
             
             # 2. VÉRIFICATION: FIN DE MAIN
             if self._detect_hand_end(captured_regions):
-                self.logger.info("🏁 FIN DE MAIN DÉTECTÉE")
+                self.logger.info("FIN DE MAIN DETECTEE")
                 return "HAND_ENDED"
             
             # 3. VÉRIFICATION: ÉLÉMENTS DE JEU PRÉSENTS
@@ -987,7 +987,7 @@ class PokerAgent:
                 # MAIS on va analyser plus en détail dans _handle_game_active
                 return "GAME_ACTIVE"
             else:
-                # 🚀 PAS D'ÉLÉMENTS = PAS DE PARTIE
+                # PAS D'ELEMENTS = PAS DE PARTIE
                 return "NO_GAME"
                 
         except Exception as e:
@@ -1021,7 +1021,7 @@ class PokerAgent:
             if 'community_cards' in captured_regions:
                 community_cards = self.image_analyzer.detect_cards(captured_regions['community_cards'])
                 if not community_cards and hasattr(self, 'had_community_cards') and self.had_community_cards:
-                    self.logger.info("🃏 Cartes communautaires disparues - main terminée")
+                    self.logger.info("Cartes communautaires disparues - main terminee")
                     return True
                 self.had_community_cards = bool(community_cards)
             
@@ -1092,7 +1092,7 @@ class PokerAgent:
     def _handle_game_active(self, captured_regions: Dict):
         """Gère la partie en cours - DÉTECTION ULTRA-RAPIDE DES BOUTONS D'ACTION"""
         try:
-            # 🎯 PRIORITÉ ABSOLUE: BOUTONS D'ACTION (10 secondes max)
+            # PRIORITE ABSOLUE: BOUTONS D'ACTION (10 secondes max)
             if 'action_buttons' in captured_regions:
                 buttons = self.button_detector.detect_available_actions(captured_regions['action_buttons'])
                 if buttons:
@@ -1552,7 +1552,7 @@ class PokerAgent:
         """Gère l'absence de partie - lancement proactif"""
         try:
             # Pas de partie - essayer de lancer une nouvelle
-            self.logger.info("🚀 Pas de partie - tentative de lancement...")
+            self.logger.info("Pas de partie - tentative de lancement...")
             if self._check_and_click_new_hand_button(captured_regions):
                 self.logger.info("✅ Nouvelle partie lancée!")
                     
