@@ -1,127 +1,139 @@
 {
   "hand_area": {
-    "x": 4343,
-    "y": 860,
-    "width": 270,
-    "height": 140
+    "x": 512,
+    "y": 861,
+    "width": 240,
+    "height": 130
   },
   "community_cards": {
-    "x": 4180,
+    "x": 348,
     "y": 597,
-    "width": 650,
+    "width": 590,
     "height": 170
   },
   "pot_area": {
-    "x": 4266,
-    "y": 511,
-    "width": 460,
-    "height": 90
+    "x": 465,
+    "y": 510,
+    "width": 410,
+    "height": 70
   },
-  "action_buttons": {
-    "x": 4590,
-    "y": 973,
-    "width": 530,
-    "height": 100
+  "fold_button": {
+    "x": 773,
+    "y": 1008,
+    "width": 120,
+    "height": 40
+  },
+  "call_button": {
+    "x": 937,
+    "y": 1010,
+    "width": 120,
+    "height": 40
+  },
+  "raise_button": {
+    "x": 1105,
+    "y": 1006,
+    "width": 120,
+    "height": 40
+  },
+  "check_button": {
+    "x": 936,
+    "y": 1008,
+    "width": 120,
+    "height": 40
+  },
+  "all_in_button": {
+    "x": 1267,
+    "y": 907,
+    "width": 120,
+    "height": 40
   },
   "my_stack_area": {
-    "x": 4342,
-    "y": 1008,
-    "width": 270,
-    "height": 60
+    "x": 548,
+    "y": 1015,
+    "width": 200,
+    "height": 50
   },
   "opponent1_stack_area": {
-    "x": 3865,
-    "y": 656,
-    "width": 180,
+    "x": 35,
+    "y": 657,
+    "width": 150,
     "height": 50
   },
   "opponent2_stack_area": {
-    "x": 4921,
-    "y": 647,
-    "width": 180,
-    "height": 60
+    "x": 1102,
+    "y": 662,
+    "width": 150,
+    "height": 40
   },
-  "current_bet_to_call": {
-    "x": 443,
-    "y": 458,
+  "my_current_bet": {
+    "x": 525,
+    "y": 824,
     "width": 200,
     "height": 30
   },
-  "my_current_bet": {
-    "x": 4354,
-    "y": 799,
-    "width": 240,
-    "height": 50
-  },
   "opponent1_current_bet": {
-    "x": 4015,
-    "y": 630,
-    "width": 190,
-    "height": 90
+    "x": 210,
+    "y": 638,
+    "width": 110,
+    "height": 80
   },
   "opponent2_current_bet": {
-    "x": 4750,
-    "y": 625,
-    "width": 170,
-    "height": 100
-  },
-  "bet_slider": {
-    "x": 4592,
-    "y": 935,
-    "width": 350,
-    "height": 50
-  },
-  "bet_input": {
-    "x": 4947,
-    "y": 944,
-    "width": 170,
-    "height": 35
-  },
-  "new_hand_button": {
-    "x": 4338,
-    "y": 962,
-    "width": 290,
+    "x": 961,
+    "y": 645,
+    "width": 110,
     "height": 60
   },
-  "sit_out_button": {
-    "x": 383,
-    "y": 647,
+  "bet_slider": {
+    "x": 747,
+    "y": 953,
+    "width": 360,
+    "height": 40
+  },
+  "bet_input": {
+    "x": 1115,
+    "y": 952,
+    "width": 100,
+    "height": 25
+  },
+  "new_hand_button": {
+    "x": 599,
+    "y": 979,
     "width": 100,
     "height": 30
   },
-  "leave_table_button": {
-    "x": 596,
-    "y": 704,
-    "width": 100,
-    "height": 30
+  "resume_button": {
+    "x": 600,
+    "y": 400,
+    "width": 120,
+    "height": 40
   },
   "blinds_area": {
-    "x": 4960,
-    "y": 330,
-    "width": 160,
+    "x": 1166,
+    "y": 326,
+    "width": 120,
     "height": 30
   },
   "blinds_timer": {
-    "x": 4969,
-    "y": 301,
-    "width": 150,
-    "height": 30
+    "x": 1168,
+    "y": 299,
+    "width": 100,
+    "height": 20
   },
   "my_dealer_button": {
-    "x": 4121,
-    "y": 845,
-    "width": 80,
+    "x": 297,
+    "y": 843,
+    "width": 50,
     "height": 50
   },
   "opponent1_dealer_button": {
-    "x": 4029,
-    "y": 556,
-    "width": 80,
+    "x": 210,
+    "y": 545,
+    "width": 50,
     "height": 50
   },
   "opponent2_dealer_button": {
-    "x": 4853,
-    "y": 546,
+    "x": 1012,
+    "y": 547,
     "width": 80,
     "height": 50
   }

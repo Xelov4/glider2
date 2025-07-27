@@ -1,5 +1,39 @@
 """
-Module d'analyse d'images pour l'agent IA Poker
+🔍 Module d'Analyse d'Images - Détection de Cartes et OCR
+========================================================
+
+Ce module gère la reconnaissance visuelle des éléments de poker :
+- Détection des cartes (template matching + OCR)
+- Reconnaissance des jetons et montants
+- Extraction de texte avec Tesseract
+- Validation et filtrage des résultats
+
+FONCTIONNALITÉS
+===============
+
+✅ Détection multi-méthodes des cartes
+✅ OCR robuste pour les montants
+✅ Template matching optimisé
+✅ Validation automatique des résultats
+✅ Gestion d'erreurs complète
+
+MÉTHODES PRINCIPALES
+====================
+
+- detect_cards() : Détection principale des cartes
+- extract_text() : OCR avec Tesseract
+- detect_chips() : Reconnaissance des jetons
+- validate_card() : Validation des cartes détectées
+
+TEMPLATES
+=========
+
+Les templates de cartes sont chargés depuis templates/cards/ :
+- Rangs : 2, 3, 4, 5, 6, 7, 8, 9, 10, J, Q, K, A
+- Couleurs : ♠, ♥, ♦, ♣
+
+VERSION: 2.0.0
+DERNIÈRE MISE À JOUR: 2025-07-27
 """
 
 import cv2
@@ -10,6 +44,7 @@ import logging
 from dataclasses import dataclass
 from skimage import measure, morphology
 from skimage.filters import threshold_otsu
+import os
 
 @dataclass
 class Card:
@@ -30,9 +65,9 @@ class ImageAnalyzer:
     """
     
     def __init__(self):
+        self.logger = logging.getLogger(__name__)
         self.card_templates = self.load_card_templates()
         self.ocr_config = r'--oem 3 --psm 6 outputbase digits'
-        self.logger = logging.getLogger(__name__)
         
         # Configuration Tesseract
         try:
@@ -63,21 +98,35 @@ class ImageAnalyzer:
     
     def load_card_templates(self) -> Dict:
         """
-        Charge les templates de cartes (simulation - en vrai il faudrait des images)
+        Charge les templates de cartes depuis le dossier templates/cards
         """
-        # Simulation des templates - en production il faudrait charger des images réelles
         templates = {}
-        ranks = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2']
-        suits = ['♠', '♥', '♦', '♣']
+        ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
         
+        # Charger les templates de rangs disponibles
         for rank in ranks:
-            for suit in suits:
-                key = f"{rank}{suit}"
-                # Simulation d'un template (en vrai ce serait une image)
-                # Réduire la taille pour éviter les erreurs OpenCV
-                template = np.random.randint(0, 256, (30, 20, 3), dtype=np.uint8)
-                templates[key] = template
-                
+            rank_file = f"templates/cards/ranks/card_{rank}.png"
+            if os.path.exists(rank_file):
+                try:
+                    template = cv2.imread(rank_file)
+                    if template is not None:
+                        templates[f"rank_{rank}"] = template
+                        self.logger.info(f"Template rang chargé: {rank} ({template.shape})")
+                    else:
+                        self.logger.warning(f"Template rang {rank} chargé mais None")
+                except Exception as e:
+                    self.logger.warning(f"Erreur chargement template rang {rank}: {e}")
+            else:
+                self.logger.warning(f"Fichier template rang non trouvé: {rank_file}")
+        
+        # Créer des templates combinés pour les cartes complètes
+        # Pour l'instant, on utilise juste les rangs car les couleurs ne sont pas disponibles
+        for rank in ranks:
+            if f"rank_{rank}" in templates:
+                # Créer un template de carte complète basé sur le rang
+                templates[f"card_{rank}"] = templates[f"rank_{rank}"]
+        
+        self.logger.info(f"Templates de cartes chargés: {len(templates)} templates")
         return templates
     
     def create_button_template(self, text: str) -> np.ndarray:
@@ -91,25 +140,167 @@ class ImageAnalyzer:
     
     def detect_cards(self, image: np.ndarray) -> List[Card]:
         """
-        Détecte les cartes dans l'image
+        Détecte les cartes dans l'image avec une approche plus robuste
         """
         cards = []
         
         try:
             # Vérifier que l'image est valide
             if image is None or image.size == 0:
+                self.logger.debug("Image vide pour détection de cartes")
                 return cards
                 
-            # Conversion en HSV pour meilleure détection des couleurs
-            hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+            # Préprocessing de l'image
+            processed_image = self.preprocess_image(image)
             
-            # Détection des contours de cartes
+            # APPROCHE 1: Template matching avec les templates de cartes
+            template_cards = self._detect_cards_by_template_matching(processed_image)
+            if template_cards:
+                cards.extend(template_cards)
+                self.logger.info(f"Cartes détectées par template: {[str(c) for c in template_cards]}")
+            
+            # APPROCHE 2: OCR direct pour détecter les rangs et couleurs
+            if not cards:  # Si template matching échoue
+                ocr_cards = self._detect_cards_by_ocr(processed_image)
+                if ocr_cards:
+                    cards.extend(ocr_cards)
+                    self.logger.info(f"Cartes détectées par OCR: {[str(c) for c in ocr_cards]}")
+            
+            # APPROCHE 3: Détection par contours si les autres échouent
+            if not cards:
+                contour_cards = self._detect_cards_by_contours(processed_image)
+                if contour_cards:
+                    cards.extend(contour_cards)
+                    self.logger.info(f"Cartes détectées par contours: {[str(c) for c in contour_cards]}")
+            
+            # Validation finale des cartes détectées
+            valid_cards = []
+            for card in cards:
+                if self._validate_card(card):
+                    valid_cards.append(card)
+            
+            self.logger.debug(f"Détecté {len(valid_cards)} cartes valides: {valid_cards}")
+            return valid_cards
+                        
+        except Exception as e:
+            self.logger.error(f"Erreur détection cartes: {e}")
+            return cards
+    
+    def _detect_cards_by_template_matching(self, image: np.ndarray) -> List[Card]:
+        """Détecte les cartes par template matching"""
+        cards = []
+        
+        try:
+            # Diviser l'image en régions potentielles de cartes
+            card_regions = self._extract_card_regions(image)
+            
+            for region in card_regions:
+                # Template matching pour chaque template de carte
+                best_match = None
+                best_confidence = 0.0
+                
+                for card_key, template in self.card_templates.items():
+                    try:
+                        if template is not None and template.size > 0:
+                            # Vérifier que le template n'est pas plus grand que la région
+                            if template.shape[0] > region.shape[0] or template.shape[1] > region.shape[1]:
+                                # Redimensionner le template pour correspondre à la région
+                                resized_template = cv2.resize(template, (region.shape[1], region.shape[0]))
+                            else:
+                                resized_template = template
+                            
+                            # Template matching
+                            result = cv2.matchTemplate(region, resized_template, cv2.TM_CCOEFF_NORMED)
+                            confidence = np.max(result)
+                            
+                            if confidence > best_confidence and confidence > 0.3:  # Seuil de confiance plus bas
+                                best_confidence = confidence
+                                best_match = card_key
+                                self.logger.debug(f"Match trouvé: {card_key} avec confiance {confidence:.2f}")
+                                
+                    except Exception as e:
+                        self.logger.debug(f"Erreur template matching {card_key}: {e}")
+                        continue
+                
+                if best_match:
+                    # Créer l'objet Card
+                    rank, suit = self._parse_card_key(best_match)
+                    card = Card(rank=rank, suit=suit, confidence=best_confidence)
+                    cards.append(card)
+                    
+        except Exception as e:
+            self.logger.error(f"Erreur template matching: {e}")
+            
+        return cards
+    
+    def _detect_cards_by_ocr(self, image: np.ndarray) -> List[Card]:
+        """Détecte les cartes par OCR direct"""
+        cards = []
+        
+        try:
+            import pytesseract
+            
+            # Extraire le texte avec OCR
+            text = pytesseract.image_to_string(image, config='--psm 6').upper()
+            self.logger.debug(f"OCR texte: '{text}'")
+            
+            # Chercher les rangs et couleurs
+            ranks = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2']
+            suits = ['♠', '♥', '♦', '♣', 'S', 'H', 'D', 'C']
+            
+            # Mapping pour les erreurs OCR courantes
+            ocr_mapping = {
+                '12': 'Q',  # 12 peut être Q
+                '13': 'K',  # 13 peut être K
+                '14': 'A',  # 14 peut être A
+                '1': 'A',   # 1 peut être A
+                '0': '10',  # 0 peut être 10
+            }
+            
+            # Nettoyer le texte
+            cleaned_text = text.replace(' ', '').replace('\n', '')
+            self.logger.debug(f"Texte nettoyé: '{cleaned_text}'")
+            
+            # Chercher les patterns de cartes
+            for rank in ranks:
+                if rank in cleaned_text:
+                    for suit in suits:
+                        if suit in cleaned_text:
+                            # Vérifier que rank et suit sont proches
+                            rank_pos = cleaned_text.find(rank)
+                            suit_pos = cleaned_text.find(suit)
+                            if abs(rank_pos - suit_pos) <= 3:  # Proximité réduite
+                                card = Card(rank=rank, suit=suit, confidence=0.8)
+                                cards.append(card)
+                                self.logger.debug(f"Carte détectée par OCR: {card}")
+            
+            # Si aucune carte trouvée, essayer avec le mapping OCR
+            if not cards:
+                for ocr_text, real_rank in ocr_mapping.items():
+                    if ocr_text in cleaned_text:
+                        for suit in suits:
+                            if suit in cleaned_text:
+                                card = Card(rank=real_rank, suit=suit, confidence=0.7)
+                                cards.append(card)
+                                self.logger.debug(f"Carte détectée par mapping OCR: {card}")
+                                break
+                        
+        except Exception as e:
+            self.logger.error(f"Erreur OCR cartes: {e}")
+            
+        return cards
+    
+    def _detect_cards_by_contours(self, image: np.ndarray) -> List[Card]:
+        """Détecte les cartes par analyse de contours"""
+        cards = []
+        
+        try:
+            # Conversion en niveaux de gris
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            blurred = cv2.GaussianBlur(gray, (5, 5), 0)
             
             # Seuillage adaptatif
             thresh = cv2.adaptiveThreshold(
-                blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+                gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
             )
             
             # Recherche de contours
@@ -117,7 +308,7 @@ class ImageAnalyzer:
             
             for contour in contours:
                 area = cv2.contourArea(contour)
-                if area > 1000:  # Filtre les petits contours
+                if area > 500:  # Filtre les petits contours
                     # Approximation du rectangle
                     rect = cv2.minAreaRect(contour)
                     box = cv2.boxPoints(rect)
@@ -127,21 +318,82 @@ class ImageAnalyzer:
                     x, y, w, h = cv2.boundingRect(contour)
                     card_region = image[y:y+h, x:x+w]
                     
-                    # Analyse de la carte
-                    card = self.analyze_card_region(card_region)
+                    # Analyse de la carte par OCR
+                    card = self._analyze_card_region_ocr(card_region)
                     if card:
                         cards.append(card)
                         
         except Exception as e:
-            self.logger.error(f"Erreur détection cartes: {e}")
+            self.logger.error(f"Erreur détection par contours: {e}")
             
         return cards
     
+    def _extract_card_regions(self, image: np.ndarray) -> List[np.ndarray]:
+        """Extrait les régions potentielles de cartes"""
+        regions = []
+        
+        try:
+            # Diviser l'image en zones (approche simple)
+            height, width = image.shape[:2]
+            
+            # Pour les cartes du joueur (hand_area) - généralement 2 cartes
+            if width > height:  # Image horizontale
+                # Diviser en 2 zones pour 2 cartes
+                card_width = width // 2
+                regions.append(image[:, :card_width])
+                regions.append(image[:, card_width:])
+            else:
+                # Image verticale - prendre toute l'image
+                regions.append(image)
+                
+        except Exception as e:
+            self.logger.error(f"Erreur extraction régions: {e}")
+            
+        return regions
+    
+    def _parse_card_key(self, card_key: str) -> Tuple[str, str]:
+        """Parse une clé de carte (ex: 'Ah') en rank et suit"""
+        try:
+            if len(card_key) >= 2:
+                rank = card_key[0]
+                suit = card_key[1]
+                return rank, suit
+            return 'A', '♠'  # Valeur par défaut
+        except:
+            return 'A', '♠'
+    
+    def _analyze_card_region_ocr(self, card_region: np.ndarray) -> Optional[Card]:
+        """Analyse une région de carte par OCR"""
+        try:
+            import pytesseract
+            
+            # Extraire le texte
+            text = pytesseract.image_to_string(card_region, config='--psm 6').upper()
+            
+            # Chercher rank et suit
+            ranks = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2']
+            suits = ['♠', '♥', '♦', '♣', 'S', 'H', 'D', 'C']
+            
+            for rank in ranks:
+                if rank in text:
+                    for suit in suits:
+                        if suit in text:
+                            return Card(rank=rank, suit=suit, confidence=0.6)
+                            
+            return None
+            
+        except Exception as e:
+            self.logger.debug(f"Erreur analyse OCR région: {e}")
+            return None
+    
     def analyze_card_region(self, card_region: np.ndarray) -> Optional[Card]:
         """
-        Analyse une région de carte pour déterminer rank et suit
+        Analyse une région de carte pour déterminer rank et suit avec validation OCR
         """
         try:
+            # VALIDATION OCR POUR CONFIRMER QUE C'EST UNE CARTE
+            if not self._validate_card_with_ocr(card_region):
+                return None
             # Vérification des dimensions et type de données
             if card_region is None or card_region.size == 0:
                 return None
@@ -189,6 +441,59 @@ class ImageAnalyzer:
             self.logger.error(f"Erreur analyse carte: {e}")
             
         return None
+    
+    def _validate_card_with_ocr(self, card_region: np.ndarray) -> bool:
+        """Valide qu'une région contient bien une carte avec OCR"""
+        try:
+            import pytesseract
+            
+            # Extraire le texte avec OCR
+            text = pytesseract.image_to_string(card_region, config='--psm 6').lower()
+            
+            # Mots-clés qui indiquent une carte de poker
+            card_indicators = [
+                'a', 'k', 'q', 'j', '10', '9', '8', '7', '6', '5', '4', '3', '2',  # Rangs
+                '♠', '♥', '♦', '♣', 'spades', 'hearts', 'diamonds', 'clubs'  # Couleurs
+            ]
+            
+            # Vérifier si le texte contient des indicateurs de carte
+            for indicator in card_indicators:
+                if indicator in text:
+                    self.logger.debug(f"✅ Validation carte réussie: '{text}'")
+                    return True
+            
+            self.logger.debug(f"❌ Validation carte échouée: '{text}'")
+            return False
+            
+        except Exception as e:
+            self.logger.error(f"Erreur validation carte OCR: {e}")
+            return False
+    
+    def _validate_card(self, card: Card) -> bool:
+        """Valide une carte détectée"""
+        try:
+            # Vérifier que le rang est valide
+            valid_ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
+            if card.rank not in valid_ranks:
+                self.logger.debug(f"Rang invalide: {card.rank}")
+                return False
+            
+            # Vérifier que la couleur est valide
+            valid_suits = ['♠', '♥', '♦', '♣', '?']
+            if card.suit not in valid_suits:
+                self.logger.debug(f"Couleur invalide: {card.suit}")
+                return False
+            
+            # Vérifier la confiance
+            if card.confidence < 0.1:
+                self.logger.debug(f"Confiance trop faible: {card.confidence}")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            self.logger.debug(f"Erreur validation carte: {e}")
+            return False
     
     def detect_chips(self, image: np.ndarray) -> Dict[str, int]:
         """

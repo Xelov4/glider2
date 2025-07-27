@@ -45,9 +45,14 @@ class SpinRushStrategy(Strategy):
     
     def get_position(self, game_state) -> str:
         """Détermine la position actuelle"""
-        if game_state.my_is_dealer:
+        # Utiliser directement la position si disponible
+        if hasattr(game_state, 'my_position') and game_state.my_position:
+            return game_state.my_position
+        
+        # Fallback sur la logique dealer
+        if hasattr(game_state, 'my_is_dealer') and game_state.my_is_dealer:
             return 'BTN'
-        elif game_state.opponent1_is_dealer:
+        elif hasattr(game_state, 'opponent1_is_dealer') and game_state.opponent1_is_dealer:
             return 'BB'
         else:
             return 'UTG'
@@ -95,8 +100,9 @@ class SpinRushStrategy(Strategy):
             return 'all_in'  # Timer urgent - all-in
         
         # Décision normale basée sur la main
+        action_before = getattr(game_state, 'action_before_us', 'fold')
         if self.should_play_hand(game_state.my_cards, game_state.my_position, 
-                               game_state.action_before_us, game_state.num_players):
+                               action_before, game_state.num_players):
             if self.should_bluff(game_state, timer):
                 return 'raise'  # Bluff agressif
             else:

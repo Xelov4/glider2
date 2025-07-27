@@ -141,6 +141,19 @@ class ScreenCapture:
             
         return captured_regions
     
+    def get_region_coordinates(self, region_name: str) -> Optional[Tuple[int, int, int, int]]:
+        """Retourne les coordonnées d'une région (x, y, width, height)"""
+        try:
+            if region_name in self.regions:
+                region = self.regions[region_name]
+                return (region.x, region.y, region.width, region.height)
+            else:
+                self.logger.warning(f"Région '{region_name}' non trouvée")
+                return None
+        except Exception as e:
+            self.logger.error(f"Erreur récupération coordonnées {region_name}: {e}")
+            return None
+
     def get_region_info(self, region_name: str) -> Optional[Dict]:
         """Retourne les informations d'une région"""
         if region_name in self.regions:
@@ -224,4 +237,23 @@ class ScreenCapture:
             'disabled_regions': total_regions - enabled_regions,
             'total_capture_area': total_area,
             'regions_list': list(self.regions.keys())
-        } 
+        }
+    
+    def capture_full_screen(self) -> Optional[np.ndarray]:
+        """Capture l'écran complet pour détection de la couronne de victoire"""
+        try:
+            # Capture de l'écran complet
+            screenshot = pyautogui.screenshot()
+            if screenshot is None:
+                self.logger.error("Impossible de capturer l'écran complet")
+                return None
+            
+            # Convertir en format OpenCV
+            screenshot_cv = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+            
+            self.logger.debug(f"Écran complet capturé: {screenshot_cv.shape}")
+            return screenshot_cv
+            
+        except Exception as e:
+            self.logger.error(f"Erreur capture écran complet: {e}")
+            return None 

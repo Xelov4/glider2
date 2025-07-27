@@ -1,3 +1,5 @@
+
+
 """
 Outil de calibration pour ajuster les coordonnées des régions de capture
 """
@@ -18,38 +20,29 @@ class CalibrationTool:
     def __init__(self):
         self.sct = mss.mss()
         self.regions = {
-            # Zones principales (essentielles)
-            'hand_area': {'x': 400, 'y': 500, 'width': 200, 'height': 100, 'name': 'Cartes du joueur'},
-            'community_cards': {'x': 300, 'y': 300, 'width': 400, 'height': 80, 'name': 'Cartes communes'},
-            'pot_area': {'x': 350, 'y': 250, 'width': 300, 'height': 50, 'name': 'Zone du pot'},
-            'action_buttons': {'x': 350, 'y': 600, 'width': 500, 'height': 150, 'name': 'Boutons d\'action (ROUGE=TOUR)'},
-            
-            # Zones de stacks
-            'my_stack_area': {'x': 50, 'y': 100, 'width': 150, 'height': 400, 'name': 'Votre stack'},
-            'opponent1_stack_area': {'x': 200, 'y': 100, 'width': 150, 'height': 400, 'name': 'Stack adversaire 1'},
-            'opponent2_stack_area': {'x': 350, 'y': 100, 'width': 150, 'height': 400, 'name': 'Stack adversaire 2'},
-            
-            # Zones de mises
-            'current_bet_to_call': {'x': 400, 'y': 350, 'width': 200, 'height': 30, 'name': 'Mise à payer'},
-            'my_current_bet': {'x': 400, 'y': 350, 'width': 200, 'height': 30, 'name': 'Votre mise actuelle'},
-            'opponent1_current_bet': {'x': 200, 'y': 350, 'width': 200, 'height': 30, 'name': 'Mise adversaire 1'},
-            'opponent2_current_bet': {'x': 600, 'y': 350, 'width': 200, 'height': 30, 'name': 'Mise adversaire 2'},
-            'bet_slider': {'x': 400, 'y': 550, 'width': 200, 'height': 20, 'name': 'Slider de mise'},
-            'bet_input': {'x': 400, 'y': 580, 'width': 100, 'height': 25, 'name': 'Input de mise'},
-            
-            # Zones de navigation
-            'new_hand_button': {'x': 500, 'y': 700, 'width': 100, 'height': 30, 'name': 'Bouton New Hand'},
-            'sit_out_button': {'x': 600, 'y': 700, 'width': 100, 'height': 30, 'name': 'Bouton Sit Out'},
-            'leave_table_button': {'x': 800, 'y': 700, 'width': 100, 'height': 30, 'name': 'Leave Table'},
-            
-            # Zones avancées
-            'blinds_area': {'x': 200, 'y': 200, 'width': 150, 'height': 40, 'name': 'Zone des blinds'},
-            'blinds_timer': {'x': 200, 'y': 250, 'width': 100, 'height': 30, 'name': 'Timer des blinds'},
-            
-            # Zones bouton dealer
-            'my_dealer_button': {'x': 400, 'y': 800, 'width': 50, 'height': 50, 'name': 'Bouton dealer (vous)'},
-            'opponent1_dealer_button': {'x': 200, 'y': 300, 'width': 50, 'height': 50, 'name': 'Bouton dealer (adv1)'},
-            'opponent2_dealer_button': {'x': 600, 'y': 300, 'width': 50, 'height': 50, 'name': 'Bouton dealer (adv2)'}
+            'hand_area': {'x': 512, 'y': 861, 'width': 240, 'height': 130, 'name': 'Zone cartes joueur'},
+            'community_cards': {'x': 348, 'y': 597, 'width': 590, 'height': 170, 'name': 'Cartes communautaires'},
+            'pot_area': {'x': 465, 'y': 510, 'width': 410, 'height': 70, 'name': 'Zone du pot'},
+            'fold_button': {'x': 773, 'y': 1008, 'width': 120, 'height': 40, 'name': 'Bouton Fold'},
+            'call_button': {'x': 937, 'y': 1010, 'width': 120, 'height': 40, 'name': 'Bouton Call'},
+            'raise_button': {'x': 1105, 'y': 1006, 'width': 120, 'height': 40, 'name': 'Bouton Raise'},
+            'check_button': {'x': 936, 'y': 1008, 'width': 120, 'height': 40, 'name': 'Bouton Check'},
+            'all_in_button': {'x': 1267, 'y': 907, 'width': 120, 'height': 40, 'name': 'Bouton All-In'},
+            'my_stack_area': {'x': 548, 'y': 1015, 'width': 200, 'height': 50, 'name': 'Stack joueur'},
+            'opponent1_stack_area': {'x': 35, 'y': 657, 'width': 150, 'height': 50, 'name': 'Stack adversaire 1'},
+            'opponent2_stack_area': {'x': 1102, 'y': 662, 'width': 150, 'height': 40, 'name': 'Stack adversaire 2'},
+            'my_current_bet': {'x': 525, 'y': 824, 'width': 200, 'height': 30, 'name': 'Mise actuelle joueur'},
+            'opponent1_current_bet': {'x': 210, 'y': 638, 'width': 110, 'height': 80, 'name': 'Mise adv1'},
+            'opponent2_current_bet': {'x': 961, 'y': 645, 'width': 110, 'height': 60, 'name': 'Mise adv2'},
+            'bet_slider': {'x': 747, 'y': 953, 'width': 360, 'height': 40, 'name': 'Slider de mise'},
+            'bet_input': {'x': 1115, 'y': 952, 'width': 100, 'height': 25, 'name': 'Input de mise'},
+            'new_hand_button': {'x': 599, 'y': 979, 'width': 100, 'height': 30, 'name': 'Bouton New Hand'},
+            'resume_button': {'x': 600, 'y': 400, 'width': 120, 'height': 40, 'name': 'Bouton Reprendre'},
+            'blinds_area': {'x': 1166, 'y': 326, 'width': 120, 'height': 30, 'name': 'Zone des blinds'},
+            'blinds_timer': {'x': 1168, 'y': 299, 'width': 100, 'height': 20, 'name': 'Timer des blinds'},
+            'my_dealer_button': {'x': 297, 'y': 843, 'width': 50, 'height': 50, 'name': 'Bouton dealer (vous)'},
+            'opponent1_dealer_button': {'x': 210, 'y': 545, 'width': 50, 'height': 50, 'name': 'Bouton dealer (adv1)'},
+            'opponent2_dealer_button': {'x': 1012, 'y': 547, 'width': 80, 'height': 50, 'name': 'Bouton dealer (adv2)'}
         }
         self.current_region = None
         self.dragging = False
@@ -168,16 +161,34 @@ class CalibrationTool:
                 with open(filename, 'r') as f:
                     config = json.load(f)
                 
+                # Mettre à jour les régions existantes
                 for region_name, coords in config.items():
                     if region_name in self.regions:
                         self.regions[region_name].update(coords)
+                    else:
+                        # Ajouter les nouvelles régions manquantes
+                        self.regions[region_name] = {
+                            'x': coords['x'],
+                            'y': coords['y'],
+                            'width': coords['width'],
+                            'height': coords['height'],
+                            'name': region_name.replace('_', ' ').title()  # Nom par défaut
+                        }
+                        print(f"Nouvelle région ajoutée: {region_name}")
                 
-                print(f"Configuration chargée depuis {filename}")
+                print(f"Configuration chargée depuis {filename} - {len(config)} régions")
             else:
                 print(f"Fichier {filename} non trouvé")
                 
         except Exception as e:
             print(f"Erreur chargement: {e}")
+    
+    def print_regions(self):
+        """Affiche toutes les régions disponibles"""
+        print(f"\n=== RÉGIONS DISPONIBLES ({len(self.regions)}) ===")
+        for i, (region_name, region) in enumerate(self.regions.items(), 1):
+            print(f"{i:2d}. {region_name:20} - ({region['x']:4d}, {region['y']:4d}) {region['width']:3d}x{region['height']:3d} - {region['name']}")
+        print("=" * 50)
     
     def run_calibration(self):
         """Lance l'outil de calibration interactif"""
@@ -191,8 +202,12 @@ class CalibrationTool:
         print("   - 'r' : Réinitialiser la région")
         print("   - 'P' : Sauvegarder")
         print("   - 'l' : Charger")
+        print("   - 'v' : Afficher toutes les régions")
         print("   - 'I' : Quitter")
         print("4. Assurez-vous que votre fenêtre poker est visible")
+        
+        # Afficher les régions au démarrage
+        self.print_regions()
         
         # Trouver la fenêtre poker
         poker_window = self.find_poker_window()
@@ -224,6 +239,9 @@ class CalibrationTool:
                 self.save_configuration()
             elif key == ord('l'):
                 self.load_configuration()
+                self.print_regions()  # Afficher après chargement
+            elif key == ord('v'):
+                self.print_regions()  # Afficher sur demande
             elif key == ord('r') and self.current_region:
                 # Réinitialiser la région actuelle
                 self.regions[self.current_region]['x'] = 400
