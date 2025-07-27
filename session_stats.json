@@ -1,13 +1,13 @@
 {
-  "session_duration": 56.797800064086914,
+  "session_duration": 72.71334409713745,
   "hands_played": 0,
   "hands_won": 0,
   "total_profit": 0.0,
   "actions_taken": 0,
   "decisions_made": 0,
   "errors_count": 0,
-  "avg_capture_time": 0.0009984970092773438,
+  "avg_capture_time": 0.16004170179367067,
   "avg_decision_time": 0,
-  "total_cycles": 0,
-  "timestamp": "2025-07-27 10:33:51"
+  "total_cycles": 38,
+  "timestamp": "2025-07-27 10:43:10"
 }

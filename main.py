@@ -94,15 +94,17 @@ class PokerAgent:
         self.image_cache = {}
         self.decision_cache = {}
         self.last_capture_time = 0
-        self.cache_ttl = 0.1  # 100ms TTL pour le cache
+        self.cache_ttl = 0.05  # 50ms TTL pour le cache (réduit)
         
-        # NOUVEAU: Métriques de performance
+        # NOUVEAU: Métriques de performance optimisées
         self.performance_metrics = {
             'capture_times': [],
             'decision_times': [],
             'ocr_times': [],
             'total_cycles': 0,
-            'avg_cycle_time': 0
+            'avg_cycle_time': 0,
+            'cache_hits': 0,
+            'cache_misses': 0
         }
         
         # NOUVEAU: Threading pour parallélisation
@@ -122,13 +124,15 @@ class PokerAgent:
             'errors_count': 0
         }
         
-        # NOUVEAU: Configuration de performance
+        # NOUVEAU: Configuration de performance ultra-optimisée
         self.performance_config = {
-            'capture_interval': 0.01,  # 10ms entre captures
-            'decision_timeout': 0.05,  # 50ms max pour décision
+            'capture_interval': 0.005,  # 5ms entre captures (réduit)
+            'decision_timeout': 0.02,  # 20ms max pour décision (réduit)
             'cache_enabled': True,
-            'parallel_processing': True,
-            'ultra_fast_mode': True
+            'parallel_processing': False,  # Désactivé pour stabilité
+            'ultra_fast_mode': True,
+            'max_cache_size': 100,  # Limite la taille du cache
+            'memory_cleanup_interval': 100  # Nettoyage tous les 100 cycles
         }
         
         # Initialisation des modules avec optimisation
@@ -226,10 +230,14 @@ class PokerAgent:
             if not self.performance_metrics['capture_times']:
                 return
             
-            avg_capture = sum(self.performance_metrics['capture_times']) / len(self.performance_metrics['capture_times'])
-            avg_decision = sum(self.performance_metrics['decision_times']) / len(self.performance_metrics['decision_times'])
+            # NOUVEAU: Protection contre division par zéro
+            capture_times = self.performance_metrics['capture_times']
+            decision_times = self.performance_metrics['decision_times']
             
-            self.logger.info(f"PERF - Capture: {avg_capture:.3f}s, Décision: {avg_decision:.3f}s, "
+            avg_capture = sum(capture_times) / len(capture_times) if capture_times else 0
+            avg_decision = sum(decision_times) / len(decision_times) if decision_times else 0
+            
+            self.logger.info(f"PERF - Capture: {avg_capture:.3f}s, Decision: {avg_decision:.3f}s, "
                            f"Cycles: {self.performance_metrics['total_cycles']}")
             
         except Exception as e:
@@ -342,16 +350,28 @@ class PokerAgent:
         
         cycle_count = 0
         last_performance_log = time.time()
+        last_state_check = time.time()
         
         try:
             while self.running:
                 cycle_start = time.time()
                 cycle_count += 1
                 
-                # NOUVEAU: Monitoring de performance
-                if time.time() - last_performance_log > 10:  # Log toutes les 10s
+                # NOUVEAU: Monitoring de performance moins fréquent
+                if time.time() - last_performance_log > 15:  # Log toutes les 15s
                     self.log_performance_metrics()
                     last_performance_log = time.time()
+                
+                # NOUVEAU: Vérification d'état moins fréquente
+                if time.time() - last_state_check > 5:  # Toutes les 5s
+                    self._check_safety_conditions()
+                    self._update_session_stats()
+                    self._monitor_performance()
+                    last_state_check = time.time()
+                
+                # NOUVEAU: Nettoyage mémoire périodique
+                if cycle_count % self.performance_config['memory_cleanup_interval'] == 0:
+                    self._cleanup_memory()
                 
                 try:
                     # 1. CAPTURE ULTRA-RAPIDE
@@ -360,45 +380,208 @@ class PokerAgent:
                         time.sleep(0.001)  # 1ms si pas de capture
                         continue
                     
-                    # 2. DÉTECTION D'ÉTAT DE JEU
-                    game_state = self._detect_game_state_intelligent(captured_regions)
+                    # 2. DÉTECTION D'ÉTAT DE JEU (optimisée)
+                    game_state = self._detect_game_state_fast(captured_regions)
                     
-                    # 3. GESTION DES ÉTATS
+                    # 3. GESTION DES ÉTATS (optimisée)
                     if game_state == 'no_game':
-                        self._handle_no_game(captured_regions)
+                        self._handle_no_game_fast(captured_regions)
                     elif game_state == 'hand_ended':
-                        self._handle_hand_ended(captured_regions)
+                        self._handle_hand_ended_fast(captured_regions)
                     elif game_state == 'our_turn':
-                        self._handle_our_turn_optimized(captured_regions)
+                        self._handle_our_turn_ultra_fast(captured_regions)
                     elif game_state == 'game_active':
-                        self._handle_game_active_optimized(captured_regions)
+                        self._handle_game_active_fast(captured_regions)
                     
-                    # NOUVEAU: Métriques de cycle
+                    # NOUVEAU: Métriques de cycle optimisées
                     cycle_time = time.time() - cycle_start
                     self.performance_metrics['total_cycles'] = cycle_count
                     
-                    # NOUVEAU: Contrôle de performance
-                    if cycle_time > 0.1:  # Plus de 100ms
+                    # NOUVEAU: Contrôle de performance moins strict
+                    if cycle_time > 0.2:  # Plus de 200ms (au lieu de 100ms)
                         self.logger.warning(f"Cycle lent: {cycle_time:.3f}s")
                     
-                    # NOUVEAU: Intervalle adaptatif
-                    if cycle_time < 0.01:  # Moins de 10ms
+                    # NOUVEAU: Intervalle adaptatif optimisé
+                    if cycle_time < 0.005:  # Moins de 5ms
                         time.sleep(0.001)  # 1ms de pause
-                    elif cycle_time < 0.05:  # Moins de 50ms
-                        time.sleep(0.005)  # 5ms de pause
+                    elif cycle_time < 0.02:  # Moins de 20ms
+                        time.sleep(0.002)  # 2ms de pause
                     
                 except Exception as e:
                     self.logger.error(f"Erreur cycle principal: {e}")
                     self.session_stats['errors_count'] += 1
-                    time.sleep(0.01)  # 10ms en cas d'erreur
+                    time.sleep(0.005)  # 5ms en cas d'erreur
                 
         except KeyboardInterrupt:
-            self.logger.info("Arrêt demandé par l'utilisateur")
+            self.logger.info("Arret demande par l'utilisateur")
         except Exception as e:
             self.logger.error(f"Erreur boucle principale: {e}")
         finally:
-            self.logger.info("Boucle principale terminée")
+            self.logger.info("Boucle principale terminee")
 
+    def _detect_game_state_fast(self, captured_regions: Dict) -> str:
+        """Détection d'état de jeu ultra-rapide"""
+        try:
+            # NOUVEAU: Vérification rapide des boutons d'action
+            for button_region in ['fold_button', 'call_button', 'raise_button', 'check_button', 'all_in_button']:
+                if button_region in captured_regions:
+                    return 'our_turn'
+            
+            # NOUVEAU: Vérification rapide de fin de main
+            if self._detect_winner_crown_fast(captured_regions):
+                return 'hand_ended'
+            
+            # NOUVEAU: Vérification rapide de jeu actif
+            if any(region in captured_regions for region in ['hand_area', 'community_cards', 'pot_area']):
+                return 'game_active'
+            
+            return 'no_game'
+            
+        except Exception as e:
+            self.logger.error(f"Erreur detection etat rapide: {e}")
+            return 'no_game'
+
+    def _detect_winner_crown_fast(self, captured_regions: Dict) -> bool:
+        """Détection rapide de la couronne de victoire"""
+        try:
+            # NOUVEAU: Vérification simple des cartes communautaires
+            if 'community_cards' in captured_regions:
+                # Si les cartes communautaires disparaissent, c'est probablement la fin
+                return False  # Simplifié pour l'instant
+            
+            return False
+            
+        except Exception as e:
+            self.logger.debug(f"Erreur detection couronne rapide: {e}")
+            return False
+
+    def _handle_no_game_fast(self, captured_regions: Dict):
+        """Gestion rapide de l'absence de partie"""
+        try:
+            # NOUVEAU: Vérification moins fréquente du bouton New Hand
+            if time.time() % 30 < 0.1:  # Toutes les 30 secondes
+                if self._check_and_click_new_hand_button(captured_regions):
+                    self.logger.info("Nouvelle partie lancee!")
+                    time.sleep(1)  # Attendre le lancement
+        except Exception as e:
+            self.logger.error(f"Erreur gestion no game rapide: {e}")
+
+    def _handle_hand_ended_fast(self, captured_regions: Dict):
+        """Gestion rapide de fin de main"""
+        try:
+            self.logger.info("Fin de main detectee")
+            time.sleep(0.5)  # Attendre l'animation
+        except Exception as e:
+            self.logger.error(f"Erreur gestion fin main rapide: {e}")
+
+    def _handle_our_turn_ultra_fast(self, captured_regions: Dict):
+        """Gestion ultra-rapide de notre tour"""
+        try:
+            # NOUVEAU: Décision ultra-rapide
+            available_buttons = self._detect_individual_action_buttons_fast(captured_regions)
+            
+            if available_buttons:
+                # Analyser l'état du jeu rapidement
+                game_state = self._analyze_complete_game_state_fast(captured_regions)
+                
+                if game_state:
+                    # Prendre une décision intelligente
+                    decision = self._make_instant_decision(game_state, available_buttons)
+                    
+                    if decision:
+                        # Log l'état et l'action
+                        self.log_game_state(game_state, decision['action'])
+                        
+                        # Exécuter immédiatement
+                        self._execute_action_immediately(decision)
+                        self.session_stats['actions_taken'] += 1
+                        
+                        # NOUVEAU: Pause courte après action
+                        time.sleep(0.02)  # 20ms
+                
+        except Exception as e:
+            self.logger.error(f"Erreur gestion tour ultra-rapide: {e}")
+
+    def _handle_game_active_fast(self, captured_regions: Dict):
+        """Gestion rapide du jeu actif"""
+        try:
+            # NOUVEAU: Analyse légère seulement
+            if time.time() % 2 < 0.1:  # Toutes les 2 secondes
+                self._continuous_game_analysis_and_decision(captured_regions)
+                
+        except Exception as e:
+            self.logger.error(f"Erreur gestion jeu actif rapide: {e}")
+
+    def _detect_individual_action_buttons_fast(self, captured_regions: Dict) -> List[Dict]:
+        """Détection rapide des boutons d'action individuels"""
+        try:
+            buttons = []
+            button_regions = ['fold_button', 'call_button', 'raise_button', 'check_button', 'all_in_button']
+            
+            for region_name in button_regions:
+                if region_name in captured_regions:
+                    # NOUVEAU: Vérification simple de visibilité
+                    if self._is_button_visible_fast(captured_regions[region_name]):
+                        buttons.append({
+                            'name': region_name.replace('_button', ''),
+                            'region': region_name,
+                            'confidence': 0.9
+                        })
+            
+            return buttons
+            
+        except Exception as e:
+            self.logger.error(f"Erreur detection boutons rapide: {e}")
+            return []
+
+    def _is_button_visible_fast(self, button_img) -> bool:
+        """Vérification rapide de visibilité d'un bouton"""
+        try:
+            if button_img is None:
+                return False
+            
+            # NOUVEAU: Vérification simple basée sur la taille
+            height, width = button_img.shape[:2]
+            return width > 10 and height > 10
+            
+        except Exception as e:
+            self.logger.debug(f"Erreur verification bouton rapide: {e}")
+            return False
+
+    def _analyze_complete_game_state_fast(self, captured_regions: Dict) -> Optional[Dict]:
+        """Analyse rapide de l'état complet du jeu"""
+        try:
+            game_state = {}
+            
+            # NOUVEAU: Analyse simplifiée
+            if 'hand_area' in captured_regions:
+                my_cards = self.image_analyzer.detect_cards(captured_regions['hand_area'])
+                game_state['my_cards'] = [f"{c.rank}{c.suit}" for c in my_cards] if my_cards else []
+            
+            if 'community_cards' in captured_regions:
+                community_cards = self.image_analyzer.detect_cards(captured_regions['community_cards'])
+                game_state['community_cards'] = [f"{c.rank}{c.suit}" for c in community_cards] if community_cards else []
+            
+            if 'my_stack_area' in captured_regions:
+                stack_text = self.image_analyzer.extract_text(captured_regions['my_stack_area'])
+                game_state['my_stack'] = self._parse_stack_amount(stack_text) if stack_text else 500
+            
+            if 'pot_area' in captured_regions:
+                pot_text = self.image_analyzer.extract_text(captured_regions['pot_area'])
+                game_state['pot_size'] = self._parse_bet_amount(pot_text) if pot_text else 0
+            
+            # NOUVEAU: Valeurs par défaut
+            game_state['position'] = 'BB'
+            game_state['timer'] = 30
+            game_state['num_players'] = 3
+            game_state['street'] = 'preflop'
+            
+            return game_state if game_state else None
+            
+        except Exception as e:
+            self.logger.error(f"Erreur analyse etat rapide: {e}")
+            return None
+    
     def _handle_our_turn_optimized(self, captured_regions: Dict):
         """Gestion optimisée de notre tour"""
         try:
@@ -764,18 +947,18 @@ class PokerAgent:
             # Vérifier les performances critiques
             if self.performance_metrics['capture_times']:
                 recent_captures = self.performance_metrics['capture_times'][-10:]  # 10 dernières captures
-                avg_recent_capture = sum(recent_captures) / len(recent_captures)
+                avg_recent_capture = sum(recent_captures) / len(recent_captures) if recent_captures else 0
                 
                 if avg_recent_capture > 0.1:  # Plus de 100ms
-                    self.logger.warning(f"Performance capture dégradée: {avg_recent_capture:.3f}s")
+                    self.logger.warning(f"Performance capture degradee: {avg_recent_capture:.3f}s")
                     self._recover_from_error('capture_error')
             
             if self.performance_metrics['decision_times']:
                 recent_decisions = self.performance_metrics['decision_times'][-10:]  # 10 dernières décisions
-                avg_recent_decision = sum(recent_decisions) / len(recent_decisions)
+                avg_recent_decision = sum(recent_decisions) / len(recent_decisions) if recent_decisions else 0
                 
                 if avg_recent_decision > 0.05:  # Plus de 50ms
-                    self.logger.warning(f"Performance décision dégradée: {avg_recent_decision:.3f}s")
+                    self.logger.warning(f"Performance decision degradee: {avg_recent_decision:.3f}s")
                     self._recover_from_error('decision_error')
             
             # Vérifier le taux d'erreurs
@@ -1612,41 +1795,55 @@ class PokerAgent:
                 cache_age = time.time() - self.last_capture_time
                 if cache_age < self.cache_ttl and self.image_cache:
                     self.logger.debug(f"Cache hit: {cache_age:.3f}s")
+                    self._update_cache_metrics(True)  # Cache hit
                     return self.image_cache.copy()
+                
+                self._update_cache_metrics(False)  # Cache miss
             
-            # NOUVEAU: Capture optimisée avec régions prioritaires
+            # NOUVEAU: Régions prioritaires optimisées
             critical_regions = [
-                'fold_button', 'call_button', 'raise_button', 'check_button', 'all_in_button',
-                'hand_area', 'community_cards', 'pot_area', 'my_stack_area'
+                'fold_button', 'call_button', 'raise_button', 'check_button', 'all_in_button'
             ]
             
+            # NOUVEAU: Capture séquentielle ultra-rapide
             captured_regions = {}
             
-            # Capture parallèle des régions critiques
-            if self.performance_config['parallel_processing'] and False:  # Temporairement désactivé
-                captured_regions = self._capture_regions_parallel(critical_regions)
-            else:
-                captured_regions = self._capture_regions_sequential(critical_regions)
+            # Capture des boutons critiques en premier (priorité absolue)
+            for region_name in critical_regions:
+                try:
+                    image = self.screen_capture.capture_region(region_name)
+                    if image is not None and image.size > 0:
+                        captured_regions[region_name] = image
+                        # NOUVEAU: Si on trouve des boutons, on peut s'arrêter là
+                        if len(captured_regions) >= 2:  # Au moins 2 boutons détectés
+                            break
+                except Exception as e:
+                    self.logger.debug(f"Erreur capture {region_name}: {e}")
             
-            # NOUVEAU: Validation et nettoyage
-            valid_regions = {}
-            for region_name, image in captured_regions.items():
-                if image is not None and image.size > 0:
-                    valid_regions[region_name] = image
+            # NOUVEAU: Si pas de boutons, capturer les autres éléments
+            if not captured_regions:
+                secondary_regions = ['hand_area', 'community_cards', 'pot_area', 'my_stack_area']
+                for region_name in secondary_regions:
+                    try:
+                        image = self.screen_capture.capture_region(region_name)
+                        if image is not None and image.size > 0:
+                            captured_regions[region_name] = image
+                    except Exception as e:
+                        self.logger.debug(f"Erreur capture {region_name}: {e}")
             
             # Mettre à jour le cache
-            if valid_regions:
-                self.image_cache = valid_regions.copy()
+            if captured_regions:
+                self.image_cache = captured_regions.copy()
                 self.last_capture_time = time.time()
                 
                 # NOUVEAU: Métriques de performance
                 capture_time = time.time() - start_time
                 self.performance_metrics['capture_times'].append(capture_time)
-                if len(self.performance_metrics['capture_times']) > 100:
+                if len(self.performance_metrics['capture_times']) > 50:  # Réduit à 50
                     self.performance_metrics['capture_times'].pop(0)
                 
-                self.logger.debug(f"Capture ultra-rapide: {len(valid_regions)} régions en {capture_time:.3f}s")
-                return valid_regions
+                self.logger.debug(f"Capture ultra-rapide: {len(captured_regions)} regions en {capture_time:.3f}s")
+                return captured_regions
             
             return None
             
@@ -2576,6 +2773,44 @@ class PokerAgent:
         except Exception as e:
             self.logger.error(f"Erreur validation données: {e}")
             return False
+
+    def _cleanup_memory(self):
+        """Nettoyage mémoire pour optimiser les performances"""
+        try:
+            # NOUVEAU: Nettoyage du cache de décisions
+            if len(self.decision_cache) > self.performance_config['max_cache_size']:
+                # Supprimer les entrées les plus anciennes
+                sorted_keys = sorted(self.decision_cache.keys(), 
+                                   key=lambda k: self.decision_cache[k]['timestamp'])
+                keys_to_remove = sorted_keys[:-self.performance_config['max_cache_size']]
+                
+                for key in keys_to_remove:
+                    del self.decision_cache[key]
+                
+                self.logger.debug(f"Nettoyage cache: {len(keys_to_remove)} entrees supprimees")
+            
+            # NOUVEAU: Nettoyage du cache d'images
+            if len(self.image_cache) > 20:  # Limite à 20 images
+                self.image_cache.clear()
+                self.logger.debug("Cache images vide")
+            
+            # NOUVEAU: Nettoyage des métriques de performance
+            for metric in ['capture_times', 'decision_times', 'ocr_times']:
+                if len(self.performance_metrics[metric]) > 30:  # Limite à 30 valeurs
+                    self.performance_metrics[metric] = self.performance_metrics[metric][-30:]
+            
+        except Exception as e:
+            self.logger.error(f"Erreur nettoyage memoire: {e}")
+
+    def _update_cache_metrics(self, cache_hit: bool):
+        """Mise à jour des métriques de cache"""
+        try:
+            if cache_hit:
+                self.performance_metrics['cache_hits'] += 1
+            else:
+                self.performance_metrics['cache_misses'] += 1
+        except Exception as e:
+            self.logger.debug(f"Erreur metriques cache: {e}")
 
 def main():
     """Point d'entrée principal"""
