@@ -876,7 +876,7 @@ class PokerAgent:
                 if buttons:
                     # 🚨 BOUTONS DÉTECTÉS = C'EST NOTRE TOUR - ACTION IMMÉDIATE !
                     button_names = [btn.name for btn in buttons]
-                    self.logger.info(f"URGENT: BOUTONS DÉTECTÉS: {button_names} - ACTION IMMÉDIATE!")
+                    # Boutons détectés
                     
                     # ANALYSE RAPIDE SEULEMENT DES DONNÉES CRITIQUES
                     critical_data = self._analyze_critical_game_data(captured_regions)
@@ -1274,7 +1274,7 @@ class PokerAgent:
             action = decision.get('action', 'fold')
             reasoning = decision.get('reasoning', '')
             
-            self.logger.info(f"EXÉCUTION IMMÉDIATE: {action.upper()} - {reasoning}")
+            self.logger.info(f"Action: {action.upper()} - {reasoning}")
             
             # Mapper l'action vers le bouton correspondant
             action_to_button = {
@@ -1481,10 +1481,9 @@ class PokerAgent:
             if 'hand_area' in captured_regions:
                 my_cards = self.image_analyzer.detect_cards(captured_regions['hand_area'])
                 if my_cards:
-                    self.logger.info(f"MES CARTES: {my_cards}")
                     # Vérifier si les cartes ont changé (nouvelle main)
                     if my_cards != self.previous_cards:
-                        self.logger.info("NOUVELLE MAIN DETECTEE!")
+                        self.logger.info("Nouvelle main détectée")
                         self._on_new_hand()
                         self.previous_cards = my_cards
                 else:
@@ -1494,7 +1493,8 @@ class PokerAgent:
             if 'community_cards' in captured_regions:
                 community_cards = self.image_analyzer.detect_cards(captured_regions['community_cards'])
                 if community_cards:
-                    self.logger.info(f"CARTES COMMUNES: {community_cards}")
+                    # Cartes communes détectées
+                    pass
                 else:
                     self.logger.debug("Aucune carte commune detectee")
             
@@ -1510,7 +1510,8 @@ class PokerAgent:
             if 'my_stack_area' in captured_regions:
                 stack_text = self.image_analyzer.extract_text(captured_regions['my_stack_area'])
                 if stack_text and stack_text.strip():
-                    self.logger.info(f"MON STACK: {stack_text}")
+                    # Stack détecté
+                    pass
                 else:
                     self.logger.debug("Aucun stack detecte")
             
@@ -1519,8 +1520,9 @@ class PokerAgent:
                 stack_key = f'opponent{i}_stack_area'
                 if stack_key in captured_regions:
                     stack_text = self.image_analyzer.extract_text(captured_regions[stack_key])
-                    if stack_text and stack_text.strip():
-                        self.logger.info(f"ADVERSAIRE {i} STACK: {stack_text}")
+                                          if stack_text and stack_text.strip():
+                          # Stack adversaire détecté
+                          pass
             
             # 6. ANALYSE DES MISES ACTUELLES
             for player in ['my', 'opponent1', 'opponent2']:
@@ -1552,17 +1554,19 @@ class PokerAgent:
             if 'hand_area' in captured_regions:
                 my_cards = self.image_analyzer.detect_cards(captured_regions['hand_area'])
                 if my_cards:
-                    self.logger.info(f"MES CARTES: {my_cards}")
+                    # Mes cartes détectées
+                    pass
                 else:
-                    self.logger.debug("🃏 Aucune carte détectée dans hand_area")
+                    self.logger.debug("Aucune carte détectée dans hand_area")
             
             # 2. Détecter les cartes communautaires
             if 'community_cards' in captured_regions:
                 community_cards = self.image_analyzer.detect_cards(captured_regions['community_cards'])
                 if community_cards:
-                    self.logger.info(f"CARTES COMMUNES: {community_cards}")
+                    # Cartes communes détectées
+                    pass
                 else:
-                    self.logger.debug("🃏 Aucune carte commune détectée")
+                    self.logger.debug("Aucune carte commune détectée")
             
             # 3. Détecter le pot
             if 'pot_area' in captured_regions:
@@ -1629,7 +1633,7 @@ class PokerAgent:
             available_buttons = self._detect_individual_action_buttons(captured_regions)
             
             if available_buttons:
-                self.logger.info(f"URGENT: BOUTONS DÉTECTÉS: {[btn['name'] for btn in available_buttons]} - DÉCISION IMMÉDIATE!")
+                # Boutons détectés, prise de décision
                 
                 # 2. ANALYSE RAPIDE DE L'ÉTAT DU JEU
                 game_state = self._analyze_complete_game_state(captured_regions)
@@ -1639,10 +1643,9 @@ class PokerAgent:
                     decision = self._make_instant_decision(game_state, available_buttons)
                     
                     if decision:
-                        self.logger.info(f"DÉCISION INSTANTANÉE: {decision['action'].upper()} - {decision['reason']}")
+                        self.logger.info(f"Décision: {decision['action'].upper()} - {decision['reason']}")
                         
-                        # 4. EXÉCUTION IMMÉDIATE
-                        self.logger.info(f"EXÉCUTION IMMÉDIATE: {decision['action'].upper()} -")
+                                    # 4. EXÉCUTION IMMÉDIATE
                         self._execute_action_immediately(decision)
                         
                         # 5. PAUSE COURTE APRÈS ACTION
@@ -1652,7 +1655,7 @@ class PokerAgent:
                         self.logger.warning("Aucune décision prise malgré les boutons disponibles")
                         return False
                 else:
-                    self.logger.warning("État de jeu invalide malgré les boutons disponibles")
+                    # État de jeu invalide
                     return False
             else:
                 # Pas de boutons d'action - continuer l'analyse
@@ -1740,9 +1743,10 @@ class PokerAgent:
                 my_cards = self.image_analyzer.detect_cards(captured_regions['hand_area'])
                 if my_cards:
                     game_state['my_cards'] = [str(card) for card in my_cards]
-                    self.logger.info(f"Mes cartes: {game_state['my_cards']}")
+                    # Cartes détectées
                 else:
-                    self.logger.warning("Aucune carte detectee")
+                    # Aucune carte détectée
+                    pass
             
             # 2. ANALYSE DES CARTES COMMUNES
             if 'community_cards' in captured_regions:
@@ -1764,7 +1768,7 @@ class PokerAgent:
                 stack_text = self.image_analyzer.extract_text(captured_regions['my_stack_area'])
                 if stack_text and stack_text.strip():
                     game_state['my_stack'] = self._parse_stack_amount(stack_text)
-                    self.logger.info(f"Mon stack: {stack_text} ({game_state['my_stack']})")
+                    # Stack détecté
                 else:
                     game_state['my_stack'] = 500  # Valeur par défaut Spin & Rush
                     self.logger.warning("Stack non detecte, defaut: 500")
@@ -1777,7 +1781,7 @@ class PokerAgent:
                     if stack_text and stack_text.strip():
                         stack_amount = self._parse_stack_amount(stack_text)
                         game_state['opponent_stacks'].append(stack_amount)
-                        self.logger.info(f"Adversaire {i}: {stack_text} ({stack_amount})")
+                        # Stack adversaire détecté
             
             # 6. ANALYSE DES MISES ACTUELLES
             for player in ['my', 'opponent1', 'opponent2']:
@@ -1846,13 +1850,10 @@ class PokerAgent:
             
             # 12. VALIDATION CRITIQUE
             if self._validate_game_data_quick(game_state):
-                self.logger.info(f"Etat Spin & Rush: Stack={game_state['my_stack']}, "
-                               f"Position={game_state['position']}, "
-                               f"Timer={game_state['timer']}s, "
-                               f"Force={game_state['hand_strength']:.2f}")
+                # État du jeu analysé
                 return game_state
             else:
-                self.logger.warning("Donnees de jeu invalides pour Spin & Rush")
+                # Données de jeu invalides
                 return None
                 
         except Exception as e:
@@ -1918,58 +1919,53 @@ class PokerAgent:
             spr = self._calculate_stack_to_pot_ratio(my_stack, pot_size) if pot_size > 0 else 10
             pot_odds = self._calculate_pot_odds(pot_size, big_blind) if big_blind > 0 else 0.25
             
-            # DÉCISION AGRESSIVE INTELLIGENTE
-            self.logger.info(f"STRATEGIE AGRESSIVE - Cartes: {my_cards}, Stack: {my_stack}, Pot: {pot_size}, Force: {hand_strength:.2f}")
-            
             # Validation de l'action selon les boutons disponibles
             available_actions = [btn['name'].lower() for btn in available_buttons]
-            self.logger.info(f"Boutons disponibles: {available_actions}")
             
             # LOGIQUE AGRESSIVE ULTRA-RÉACTIVE
             if timer < 15:  # TIMER URGENT
-                self.logger.warning("TIMER URGENT - MODE ULTRA-AGRESSIF")
                 if 'all_in' in available_actions:
-                    return {'action': 'all_in', 'reason': 'Stratégie Agressive - Timer urgent'}
+                    return {'action': 'all_in', 'reason': 'Timer urgent'}
                 elif 'raise' in available_actions:
-                    return {'action': 'raise', 'reason': 'Stratégie Agressive - Timer urgent'}
+                    return {'action': 'raise', 'reason': 'Timer urgent'}
                 elif 'call' in available_actions:
-                    return {'action': 'call', 'reason': 'Stratégie Agressive - Timer urgent'}
+                    return {'action': 'call', 'reason': 'Timer urgent'}
             
             # LOGIQUE BASÉE SUR LA FORCE DE MAIN
             if hand_strength > 0.7:  # Main forte
                 if 'raise' in available_actions:
-                    return {'action': 'raise', 'reason': 'Stratégie Agressive - Main forte'}
+                    return {'action': 'raise', 'reason': 'Main forte'}
                 elif 'call' in available_actions:
-                    return {'action': 'call', 'reason': 'Stratégie Agressive - Main forte'}
+                    return {'action': 'call', 'reason': 'Main forte'}
             elif hand_strength > 0.4:  # Main moyenne
                 if 'call' in available_actions:
-                    return {'action': 'call', 'reason': 'Stratégie Agressive - Main moyenne'}
+                    return {'action': 'call', 'reason': 'Main moyenne'}
                 elif 'check' in available_actions:
-                    return {'action': 'check', 'reason': 'Stratégie Agressive - Main moyenne'}
+                    return {'action': 'check', 'reason': 'Main moyenne'}
             else:  # Main faible
                 if 'fold' in available_actions:
-                    return {'action': 'fold', 'reason': 'Stratégie Agressive - Main faible'}
+                    return {'action': 'fold', 'reason': 'Main faible'}
                 elif 'check' in available_actions:
-                    return {'action': 'check', 'reason': 'Stratégie Agressive - Main faible'}
+                    return {'action': 'check', 'reason': 'Main faible'}
             
             # FALLBACK INTELLIGENT
             if 'fold' in available_actions:
-                return {'action': 'fold', 'reason': 'Stratégie Agressive - Fallback sécurisé'}
+                return {'action': 'fold', 'reason': 'Fallback'}
             elif 'check' in available_actions:
-                return {'action': 'check', 'reason': 'Stratégie Agressive - Fallback check'}
+                return {'action': 'check', 'reason': 'Fallback'}
             else:
-                return {'action': 'fold', 'reason': 'Stratégie Agressive - Fallback final'}
+                return {'action': 'fold', 'reason': 'Fallback'}
 
         except Exception as e:
-            self.logger.error(f"Erreur décision Stratégie Agressive: {e}")
+            self.logger.error(f"Erreur décision: {e}")
             # Fallback: fold si possible, sinon check
             available_actions = [btn['name'].lower() for btn in available_buttons]
             if 'fold' in available_actions:
-                return {'action': 'fold', 'reason': 'Erreur - fallback'}
+                return {'action': 'fold', 'reason': 'Erreur'}
             elif 'check' in available_actions:
-                return {'action': 'check', 'reason': 'Erreur - fallback'}
+                return {'action': 'check', 'reason': 'Erreur'}
             else:
-                return {'action': 'fold', 'reason': 'Erreur - fallback'}
+                return {'action': 'fold', 'reason': 'Erreur'}
     
     def _determine_street(self, community_cards_count: int) -> str:
         """Détermine la rue actuelle"""

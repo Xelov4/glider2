@@ -89,7 +89,7 @@ class ImageAnalyzer:
                 if self._validate_card(card):
                     valid_cards.append(card)
             
-            self.logger.info(f"Cartes détectées par OCR: {[f'{c.rank}{c.suit}' for c in valid_cards]}")
+            self.logger.debug(f"Cartes détectées par OCR: {[f'{c.rank}{c.suit}' for c in valid_cards]}")
             return valid_cards
             
         except Exception as e:
