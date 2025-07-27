@@ -1520,9 +1520,9 @@ class PokerAgent:
                 stack_key = f'opponent{i}_stack_area'
                 if stack_key in captured_regions:
                     stack_text = self.image_analyzer.extract_text(captured_regions[stack_key])
-                                          if stack_text and stack_text.strip():
-                          # Stack adversaire détecté
-                          pass
+                    if stack_text and stack_text.strip():
+                        # Stack adversaire détecté
+                        pass
             
             # 6. ANALYSE DES MISES ACTUELLES
             for player in ['my', 'opponent1', 'opponent2']:
