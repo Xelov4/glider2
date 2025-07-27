@@ -158,7 +158,7 @@ class PokerAgent:
         self.monitoring_active = False
         self.last_performance_log = time.time()
         
-        self.logger.info("🤖 Agent IA Poker initialisé avec optimisations de performance")
+        self.logger.info("Agent IA Poker initialise avec optimisations de performance")
         
         # Configuration
         self.running = False
@@ -338,7 +338,7 @@ class PokerAgent:
     
     def _main_loop(self):
         """Boucle principale ultra-optimisée avec monitoring"""
-        self.logger.info("🚀 Démarrage de la boucle principale ultra-optimisée")
+        self.logger.info("Demarrage de la boucle principale ultra-optimisee")
         
         cycle_count = 0
         last_performance_log = time.time()
@@ -676,17 +676,23 @@ class PokerAgent:
     def _check_safety_conditions(self):
         """Vérifie les conditions de sécurité"""
         try:
-            # Vérification du nombre de mains par heure
-            session_duration = time.time() - self.stats['session_start']
-            hands_per_hour = (self.stats['hands_played'] / session_duration) * 3600
+            # NOUVEAU: Utiliser session_stats au lieu de stats
+            session_duration = time.time() - self.session_stats['session_start']
             
-            max_hands = self.config.getint('Safety', 'max_hands_per_hour', fallback=180)
-            if hands_per_hour > max_hands:
-                self.logger.warning(f"Trop de mains par heure: {hands_per_hour:.1f}")
-                self.pause()
+            # Vérifications de sécurité
+            if session_duration > 3600:  # 1 heure
+                self.logger.warning("Session trop longue - arrêt de sécurité")
+                return False
+            
+            if self.session_stats['errors_count'] > 100:
+                self.logger.warning("Trop d'erreurs - arrêt de sécurité")
+                return False
+            
+            return True
             
         except Exception as e:
-            self.logger.error(f"Erreur vérification sécurité: {e}")
+            self.logger.error(f"Erreur verification securite: {e}")
+            return False
     
     def _update_stats(self):
         """Met à jour les statistiques"""
@@ -1617,7 +1623,7 @@ class PokerAgent:
             captured_regions = {}
             
             # Capture parallèle des régions critiques
-            if self.performance_config['parallel_processing']:
+            if self.performance_config['parallel_processing'] and False:  # Temporairement désactivé
                 captured_regions = self._capture_regions_parallel(critical_regions)
             else:
                 captured_regions = self._capture_regions_sequential(critical_regions)
@@ -1653,20 +1659,18 @@ class PokerAgent:
         """
         Capture parallèle des régions pour performance maximale
         """
-        import concurrent.futures
-        
         captured_regions = {}
         
         try:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:  # Réduit à 2 workers
                 # Lancer les captures en parallèle
                 future_to_region = {
                     executor.submit(self.screen_capture.capture_region, region): region 
                     for region in regions
                 }
                 
-                # Collecter les résultats
-                for future in concurrent.futures.as_completed(future_to_region, timeout=0.05):
+                # Collecter les résultats avec timeout réduit
+                for future in concurrent.futures.as_completed(future_to_region, timeout=0.02):  # 20ms timeout
                     region = future_to_region[future]
                     try:
                         image = future.result()
@@ -1677,9 +1681,12 @@ class PokerAgent:
             
             return captured_regions
             
+        except concurrent.futures.TimeoutError:
+            self.logger.debug("Timeout capture parallele - fallback sequentiel")
+            return self._capture_regions_sequential(regions)
         except Exception as e:
-            self.logger.error(f"Erreur capture parallèle: {e}")
-            return {}
+            self.logger.error(f"Erreur capture parallele: {e}")
+            return self._capture_regions_sequential(regions)
 
     def _capture_regions_sequential(self, regions: List[str]) -> Dict:
         """
