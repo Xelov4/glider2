@@ -443,15 +443,15 @@ class ImageAnalyzer:
 
     def _detect_cards_by_color(self, image: np.ndarray) -> List[Card]:
         """
-        Détecte les cartes par analyse de couleur (rouge/noir)
+        Détecte les cartes par analyse de couleur (rouge/noir) avec pattern matching avancé
         """
         try:
             cards = []
             
-            # Conversion en HSV
+            # Conversion en HSV pour meilleure détection des couleurs
             hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
             
-            # Détection du rouge (♥, ♦)
+            # Détection du rouge (♥, ♦) - deux plages HSV
             lower_red1 = np.array([0, 100, 100])
             upper_red1 = np.array([10, 255, 255])
             lower_red2 = np.array([170, 100, 100])
@@ -466,17 +466,208 @@ class ImageAnalyzer:
             upper_black = np.array([180, 255, 30])
             mask_black = cv2.inRange(hsv, lower_black, upper_black)
             
-            # Si on détecte des couleurs de cartes, essayer OCR
-            if cv2.countNonZero(mask_red) > 100 or cv2.countNonZero(mask_black) > 100:
-                # OCR sur l'image originale
-                ocr_cards = self._detect_cards_ocr_optimized(image)
-                return ocr_cards
+            # NOUVEAU: Analyse des régions de couleur
+            red_regions = self._find_color_regions(mask_red, 'red')
+            black_regions = self._find_color_regions(mask_black, 'black')
             
-            return []
+            # Combiner avec OCR pour détecter les rangs
+            ocr_cards = self._detect_cards_ocr_optimized(image)
+            
+            # Associer couleurs et rangs
+            cards = self._associate_colors_with_ranks(ocr_cards, red_regions, black_regions, image)
+            
+            return cards
             
         except Exception as e:
             self.logger.error(f"Erreur détection par couleur: {e}")
             return []
+
+    def _find_color_regions(self, mask: np.ndarray, color_type: str) -> List[Dict]:
+        """
+        Trouve les régions de couleur spécifique dans l'image
+        """
+        regions = []
+        try:
+            # Recherche de contours dans le masque
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            for contour in contours:
+                area = cv2.contourArea(contour)
+                if area > 50:  # Filtre les petits contours
+                    x, y, w, h = cv2.boundingRect(contour)
+                    regions.append({
+                        'color': color_type,
+                        'x': x, 'y': y, 'width': w, 'height': h,
+                        'area': area,
+                        'center': (x + w//2, y + h//2)
+                    })
+            
+            return regions
+            
+        except Exception as e:
+            self.logger.error(f"Erreur recherche régions {color_type}: {e}")
+            return []
+
+    def _associate_colors_with_ranks(self, ocr_cards: List[Card], red_regions: List[Dict], 
+                                   black_regions: List[Dict], image: np.ndarray) -> List[Card]:
+        """
+        Associe les couleurs détectées avec les rangs OCR
+        """
+        try:
+            improved_cards = []
+            
+            for card in ocr_cards:
+                # Chercher la couleur la plus proche du rang détecté
+                best_suit = self._find_best_color_match(card, red_regions, black_regions, image)
+                
+                if best_suit:
+                    improved_card = Card(
+                        rank=card.rank,
+                        suit=best_suit,
+                        confidence=card.confidence * 1.2,  # Augmenter la confiance
+                        position=card.position
+                    )
+                    improved_cards.append(improved_card)
+                    self.logger.debug(f"Carte améliorée: {card.rank}{card.suit} -> {card.rank}{best_suit}")
+                else:
+                    improved_cards.append(card)
+            
+            return improved_cards
+            
+        except Exception as e:
+            self.logger.error(f"Erreur association couleurs: {e}")
+            return ocr_cards
+
+    def _find_best_color_match(self, card: Card, red_regions: List[Dict], 
+                              black_regions: List[Dict], image: np.ndarray) -> Optional[str]:
+        """
+        Trouve la meilleure correspondance de couleur pour une carte
+        """
+        try:
+            # Analyser la région autour de la carte
+            card_region = self._get_card_region(card, image)
+            if card_region is None:
+                return None
+            
+            # Compter les pixels rouges et noirs dans la région
+            hsv_region = cv2.cvtColor(card_region, cv2.COLOR_BGR2HSV)
+            
+            # Masques pour rouge et noir
+            mask_red = cv2.inRange(hsv_region, np.array([0, 100, 100]), np.array([10, 255, 255]))
+            mask_red2 = cv2.inRange(hsv_region, np.array([170, 100, 100]), np.array([180, 255, 255]))
+            mask_red_total = cv2.bitwise_or(mask_red, mask_red2)
+            
+            mask_black = cv2.inRange(hsv_region, np.array([0, 0, 0]), np.array([180, 255, 30]))
+            
+            red_pixels = cv2.countNonZero(mask_red_total)
+            black_pixels = cv2.countNonZero(mask_black)
+            total_pixels = card_region.shape[0] * card_region.shape[1]
+            
+            # Déterminer la couleur dominante
+            if red_pixels > black_pixels and red_pixels > total_pixels * 0.1:
+                # Déterminer si ♥ ou ♦ basé sur la forme
+                return self._determine_red_suit(card_region)
+            elif black_pixels > red_pixels and black_pixels > total_pixels * 0.1:
+                # Déterminer si ♠ ou ♣ basé sur la forme
+                return self._determine_black_suit(card_region)
+            
+            return None
+            
+        except Exception as e:
+            self.logger.debug(f"Erreur correspondance couleur: {e}")
+            return None
+
+    def _get_card_region(self, card: Card, image: np.ndarray) -> Optional[np.ndarray]:
+        """
+        Extrait la région d'une carte depuis l'image
+        """
+        try:
+            # Pour l'instant, utiliser une région par défaut
+            # TODO: Améliorer avec la position réelle de la carte
+            height, width = image.shape[:2]
+            region_size = min(width, height) // 4
+            
+            # Région centrale par défaut
+            x = width // 4
+            y = height // 4
+            w = region_size
+            h = region_size
+            
+            return image[y:y+h, x:x+w]
+            
+        except Exception as e:
+            self.logger.debug(f"Erreur extraction région carte: {e}")
+            return None
+
+    def _determine_red_suit(self, card_region: np.ndarray) -> str:
+        """
+        Détermine si c'est ♥ ou ♦ basé sur la forme
+        """
+        try:
+            # Conversion en niveaux de gris
+            gray = cv2.cvtColor(card_region, cv2.COLOR_BGR2GRAY)
+            
+            # Seuillage pour isoler la forme
+            _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+            
+            # Recherche de contours
+            contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            for contour in contours:
+                area = cv2.contourArea(contour)
+                if area > 100:
+                    # Analyser la forme
+                    hull = cv2.convexHull(contour)
+                    hull_area = cv2.contourArea(hull)
+                    solidity = float(area) / hull_area
+                    
+                    # ♥ a généralement une solidité plus faible (forme creuse)
+                    if solidity < 0.8:
+                        return '♥'
+                    else:
+                        return '♦'
+            
+            # Par défaut, retourner ♦
+            return '♦'
+            
+        except Exception as e:
+            self.logger.debug(f"Erreur détermination rouge: {e}")
+            return '♦'
+
+    def _determine_black_suit(self, card_region: np.ndarray) -> str:
+        """
+        Détermine si c'est ♠ ou ♣ basé sur la forme
+        """
+        try:
+            # Conversion en niveaux de gris
+            gray = cv2.cvtColor(card_region, cv2.COLOR_BGR2GRAY)
+            
+            # Seuillage pour isoler la forme
+            _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+            
+            # Recherche de contours
+            contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            for contour in contours:
+                area = cv2.contourArea(contour)
+                if area > 100:
+                    # Analyser la forme
+                    hull = cv2.convexHull(contour)
+                    hull_area = cv2.contourArea(hull)
+                    solidity = float(area) / hull_area
+                    
+                    # ♠ a généralement une solidité plus élevée (forme pleine)
+                    if solidity > 0.9:
+                        return '♠'
+                    else:
+                        return '♣'
+            
+            # Par défaut, retourner ♠
+            return '♠'
+            
+        except Exception as e:
+            self.logger.debug(f"Erreur détermination noir: {e}")
+            return '♠'
 
     def _deduplicate_cards(self, cards: List[Card]) -> List[Card]:
         """

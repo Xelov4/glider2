@@ -98,32 +98,34 @@ def test_ocr_configurations():
     print("\n🔧 TEST DES CONFIGURATIONS OCR")
     print("=" * 50)
     
-    image_analyzer = ImageAnalyzer()
-    screen_capture = ScreenCapture()
+    # Import manquant
+    import pytesseract
     
-    # Test sur hand_area
-    region_image = screen_capture.capture_region('hand_area')
-    if region_image is None:
-        print("❌ Impossible de capturer hand_area")
+    screen_capture = ScreenCapture()
+    image_analyzer = ImageAnalyzer()
+    
+    # Capturer une région pour tester
+    test_image = screen_capture.capture_region('hand_area')
+    if test_image is None:
+        print("❌ Impossible de capturer l'image de test")
         return
     
     # Configurations à tester
     configs = [
-        ('Standard', '--oem 3 --psm 6'),
-        ('Dense', '--oem 3 --psm 8'),
-        ('Single char', '--oem 3 --psm 10'),
-        ('Cards only', '--oem 3 --psm 6 -c tessedit_char_whitelist=23456789TJQKA♠♥♦♣'),
-        ('Cards dense', '--oem 3 --psm 8 -c tessedit_char_whitelist=23456789TJQKA♠♥♦♣'),
-        ('Cards single', '--oem 3 --psm 10 -c tessedit_char_whitelist=23456789TJQKA♠♥♦♣'),
+        ('Standard', ''),
+        ('Dense', '--oem 1 --psm 6'),
+        ('Single char', '--oem 1 --psm 8'),
+        ('Cards only', '--oem 1 --psm 6 -c tessedit_char_whitelist=23456789TJQKA♠♥♦♣'),
+        ('Cards dense', '--oem 1 --psm 8 -c tessedit_char_whitelist=23456789TJQKA♠♥♦♣'),
+        ('Cards single', '--oem 1 --psm 10 -c tessedit_char_whitelist=23456789TJQKA♠♥♦♣')
     ]
     
-    for config_name, config in configs:
+    for name, config in configs:
         try:
-            processed = image_analyzer._preprocess_for_ocr(region_image)
-            text = pytesseract.image_to_string(processed, config=config)
-            print(f"{config_name:15}: '{text.strip()}'")
+            text = pytesseract.image_to_string(test_image, config=config).strip()
+            print(f"{name:<15} : ✅ '{text}' ({len(text)} chars)")
         except Exception as e:
-            print(f"{config_name:15}: ❌ {e}")
+            print(f"{name:<15} : ❌ {e}")
 
 if __name__ == "__main__":
     setup_logging()

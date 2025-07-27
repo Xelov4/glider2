@@ -59,6 +59,8 @@ import signal
 import threading
 from typing import Dict, Optional, List
 from pathlib import Path
+import concurrent.futures
+import json
 
 # Import des modules unifiés
 from modules.screen_capture import ScreenCapture
@@ -88,62 +90,174 @@ class PokerAgent:
         self.hand_start_time = None
         self.last_action_time = time.time()
         
-        # Cache pour performance
+        # NOUVEAU: Cache intelligent pour performance
         self.image_cache = {}
         self.decision_cache = {}
         self.last_capture_time = 0
+        self.cache_ttl = 0.1  # 100ms TTL pour le cache
+        
+        # NOUVEAU: Métriques de performance
+        self.performance_metrics = {
+            'capture_times': [],
+            'decision_times': [],
+            'ocr_times': [],
+            'total_cycles': 0,
+            'avg_cycle_time': 0
+        }
+        
+        # NOUVEAU: Threading pour parallélisation
+        self.capture_thread = None
+        self.analysis_thread = None
+        self.captured_regions_queue = []
+        self.analysis_results_queue = []
         
         # Stats en temps réel
         self.session_stats = {
             'hands_played': 0,
             'hands_won': 0,
             'total_profit': 0.0,
-            'vpip': 0.0,
-            'pfr': 0.0,
-            'af': 0.0
+            'session_start': time.time(),
+            'actions_taken': 0,
+            'decisions_made': 0,
+            'errors_count': 0
         }
         
-        # Stats legacy pour compatibilité
-        self.stats = self.session_stats.copy()
-        self.stats['session_start'] = time.time()
+        # NOUVEAU: Configuration de performance
+        self.performance_config = {
+            'capture_interval': 0.01,  # 10ms entre captures
+            'decision_timeout': 0.05,  # 50ms max pour décision
+            'cache_enabled': True,
+            'parallel_processing': True,
+            'ultra_fast_mode': True
+        }
         
-        # Configuration ultra-rapide
-        self.ultra_fast_mode = True
-        self.min_capture_interval = 0.01  # 10ms
-        self.max_decision_time = 0.1  # 100ms max
-        self.current_strategy = None  # Stratégie actuelle pour décision instantanée
-        
-        # Initialisation des modules
+        # Initialisation des modules avec optimisation
         self.screen_capture = ScreenCapture()
         self.image_analyzer = ImageAnalyzer()
-        self.game_state = GameState()
         self.button_detector = ButtonDetector()
-        
-        # Moteurs de décision et d'automatisation
-        self.ai_decision = AdvancedAIEngine()
+        self.game_state = GameState()
         self.automation = AutomationEngine()
+        self.advanced_ai = AdvancedAIEngine()
+        
+        # Stratégies avec cache
+        self.aggressive_strategy = AggressiveStrategy()
+        self.general_strategy = GeneralStrategy()
+        self.current_strategy = None  # Stratégie actuelle pour décision instantanée
+        
+        # NOUVEAU: État de jeu optimisé
+        self.game_state_cache = {
+            'last_update': 0,
+            'cached_state': None,
+            'buttons_cache': [],
+            'cards_cache': [],
+            'stack_cache': 0,
+            'pot_cache': 0
+        }
+        
+        # NOUVEAU: Monitoring en temps réel
+        self.monitoring_active = False
+        self.last_performance_log = time.time()
+        
+        self.logger.info("🤖 Agent IA Poker initialisé avec optimisations de performance")
         
         # Configuration
         self.running = False
         self.paused = False
         
         # Threads pour performance
-        self.capture_thread = None
-        self.analysis_thread = None
         self.decision_thread = None
         self.monitor_thread = None  # Pour compatibilité
         
     def _setup_logging(self) -> logging.Logger:
-        """Configure le système de logging"""
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler('poker_ai.log'),
-                logging.StreamHandler(sys.stdout)
-            ]
+        """Configure le logging intelligent et structuré"""
+        logger = logging.getLogger('PokerAgent')
+        logger.setLevel(logging.INFO)
+        
+        # NOUVEAU: Formatter structuré
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            datefmt='%H:%M:%S'
         )
-        return logging.getLogger(__name__)
+        
+        # Handler console avec filtrage intelligent
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(formatter)
+        
+        # NOUVEAU: Filtre pour réduire le bruit
+        class SmartFilter(logging.Filter):
+            def filter(self, record):
+                # Filtrer les messages trop verbeux
+                noisy_patterns = [
+                    'Aucune carte detectee',
+                    'Stack non detecte',
+                    'Timer non detecte',
+                    'Cache hit',
+                    'DEBUG'
+                ]
+                
+                for pattern in noisy_patterns:
+                    if pattern.lower() in record.getMessage().lower():
+                        return False
+                
+                return True
+        
+        console_handler.addFilter(SmartFilter())
+        logger.addHandler(console_handler)
+        
+        # NOUVEAU: Handler fichier pour debug complet
+        file_handler = logging.FileHandler('poker_agent_debug.log', mode='w')
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+        
+        # NOUVEAU: Handler performance
+        perf_handler = logging.FileHandler('poker_agent_performance.log', mode='w')
+        perf_handler.setLevel(logging.INFO)
+        perf_formatter = logging.Formatter('%(asctime)s - PERFORMANCE - %(message)s')
+        perf_handler.setFormatter(perf_formatter)
+        logger.addHandler(perf_handler)
+        
+        return logger
+
+    def log_performance_metrics(self):
+        """Log les métriques de performance"""
+        try:
+            if not self.performance_metrics['capture_times']:
+                return
+            
+            avg_capture = sum(self.performance_metrics['capture_times']) / len(self.performance_metrics['capture_times'])
+            avg_decision = sum(self.performance_metrics['decision_times']) / len(self.performance_metrics['decision_times'])
+            
+            self.logger.info(f"PERF - Capture: {avg_capture:.3f}s, Décision: {avg_decision:.3f}s, "
+                           f"Cycles: {self.performance_metrics['total_cycles']}")
+            
+        except Exception as e:
+            self.logger.error(f"Erreur log performance: {e}")
+
+    def log_game_state(self, game_state: Dict, action: str = None):
+        """Log l'état du jeu de manière structurée"""
+        try:
+            if not game_state:
+                return
+            
+            my_cards = game_state.get('my_cards', [])
+            community_cards = game_state.get('community_cards', [])
+            my_stack = game_state.get('my_stack', 0)
+            pot_size = game_state.get('pot_size', 0)
+            position = game_state.get('position', '?')
+            timer = game_state.get('timer', 0)
+            
+            state_summary = f"GAME - Cartes: {my_cards}, Communes: {community_cards}, "
+            state_summary += f"Stack: {my_stack}, Pot: {pot_size}, Pos: {position}, Timer: {timer}"
+            
+            if action:
+                state_summary += f" -> {action}"
+            
+            self.logger.info(state_summary)
+            
+        except Exception as e:
+            self.logger.error(f"Erreur log état jeu: {e}")
     
     def _load_config(self) -> Dict:
         """Charge la configuration depuis le fichier"""
@@ -223,75 +337,109 @@ class PokerAgent:
         self.logger.info("Agent repris")
     
     def _main_loop(self):
-        """Boucle principale ULTRA-OPTIMISÉE pour performance maximale"""
-        self.logger.info("Boucle principale démarrée - MODE ULTRA-RAPIDE")
+        """Boucle principale ultra-optimisée avec monitoring"""
+        self.logger.info("🚀 Démarrage de la boucle principale ultra-optimisée")
         
-        # Variables pour le mode ultra-réactif
-        game_launched = False
-        last_action_check = 0
-        action_check_interval = 0.25  # 4 fois par seconde (1/4 = 0.25s)
+        cycle_count = 0
+        last_performance_log = time.time()
         
         try:
             while self.running:
+                cycle_start = time.time()
+                cycle_count += 1
+                
+                # NOUVEAU: Monitoring de performance
+                if time.time() - last_performance_log > 10:  # Log toutes les 10s
+                    self.log_performance_metrics()
+                    last_performance_log = time.time()
+                
                 try:
-                    # 1. LANCEMENT IMMÉDIAT DE PARTIE (seulement au début)
-                    if not game_launched:
-                        self.logger.info("Lancement immediat d'une nouvelle partie...")
-                        # Forcer le lancement même si le bouton n'est pas détecté
-                        game_launched = True
-                        self.logger.info("NOUVELLE PARTIE LANCEE - MODE ULTRA-REACTIF ACTIVÉ!")
-                        time.sleep(2)  # Attendre que la partie se lance
+                    # 1. CAPTURE ULTRA-RAPIDE
+                    captured_regions = self._capture_ultra_fast()
+                    if not captured_regions:
+                        time.sleep(0.001)  # 1ms si pas de capture
                         continue
                     
-                    # 2. MODE ULTRA-RÉACTIF (4 fois par seconde)
-                    current_time = time.time()
-                    if current_time - last_action_check >= action_check_interval:
-                        last_action_check = current_time
-                        
-                        # Capture ultra-rapide de toutes les régions
-                        captured_regions = self._capture_ultra_fast()
-                        if not captured_regions:
-                            time.sleep(0.01)
-                            continue
-                        
-                        # 3. VÉRIFICATION BOUTON "REPRENDRE" (priorité absolue)
-                        if self._check_and_click_resume_button(captured_regions):
-                            self.logger.info("Bouton 'Reprendre' clique - evite timeout")
-                            time.sleep(0.01)
-                            continue
-                        
-                        # Détection de la couronne de victoire (fin de manche)
-                        if self._detect_winner_crown(captured_regions):
-                            self.logger.info("COURONNE DE VICTOIRE DÉTECTÉE - Fin de manche!")
-                            self._handle_hand_ended(captured_regions)
-                            time.sleep(2)  # Attendre que l'animation se termine
-                            continue
-                        
-                        # 4. VÉRIFICATION BOUTON "NEW HAND" (toutes les 2 minutes)
-                        if current_time % 120 < 0.25:  # Toutes les 2 minutes
-                            if self._check_and_click_new_hand_button(captured_regions):
-                                self.logger.info("Nouvelle partie lancee - Passage en mode poker ultra-reactif!")
-                                time.sleep(2)
-                                continue
-                        
-                        # 5. ANALYSE CONTINUE ET DÉCISION ULTRA-RAPIDE
-                        if self._continuous_game_analysis_and_decision(captured_regions):
-                            # Une action a été exécutée, continuer
-                            continue
-                        
-                        # 6. DÉLAI MINIMAL POUR RESPECTER 4 FPS
-                        time.sleep(0.01)  # 10ms
+                    # 2. DÉTECTION D'ÉTAT DE JEU
+                    game_state = self._detect_game_state_intelligent(captured_regions)
+                    
+                    # 3. GESTION DES ÉTATS
+                    if game_state == 'no_game':
+                        self._handle_no_game(captured_regions)
+                    elif game_state == 'hand_ended':
+                        self._handle_hand_ended(captured_regions)
+                    elif game_state == 'our_turn':
+                        self._handle_our_turn_optimized(captured_regions)
+                    elif game_state == 'game_active':
+                        self._handle_game_active_optimized(captured_regions)
+                    
+                    # NOUVEAU: Métriques de cycle
+                    cycle_time = time.time() - cycle_start
+                    self.performance_metrics['total_cycles'] = cycle_count
+                    
+                    # NOUVEAU: Contrôle de performance
+                    if cycle_time > 0.1:  # Plus de 100ms
+                        self.logger.warning(f"Cycle lent: {cycle_time:.3f}s")
+                    
+                    # NOUVEAU: Intervalle adaptatif
+                    if cycle_time < 0.01:  # Moins de 10ms
+                        time.sleep(0.001)  # 1ms de pause
+                    elif cycle_time < 0.05:  # Moins de 50ms
+                        time.sleep(0.005)  # 5ms de pause
                     
                 except Exception as e:
-                    self.logger.error(f"Erreur dans la boucle principale: {e}")
-                    time.sleep(0.1)
-                    
+                    self.logger.error(f"Erreur cycle principal: {e}")
+                    self.session_stats['errors_count'] += 1
+                    time.sleep(0.01)  # 10ms en cas d'erreur
+                
         except KeyboardInterrupt:
-            self.logger.info("Arrêt demandé...")
+            self.logger.info("Arrêt demandé par l'utilisateur")
         except Exception as e:
-            self.logger.error(f"Erreur critique dans la boucle principale: {e}")
+            self.logger.error(f"Erreur boucle principale: {e}")
         finally:
             self.logger.info("Boucle principale terminée")
+
+    def _handle_our_turn_optimized(self, captured_regions: Dict):
+        """Gestion optimisée de notre tour"""
+        try:
+            # NOUVEAU: Décision ultra-rapide
+            available_buttons = self._detect_individual_action_buttons(captured_regions)
+            
+            if available_buttons:
+                # Analyser l'état du jeu rapidement
+                game_state = self._analyze_complete_game_state(captured_regions)
+                
+                if game_state:
+                    # Prendre une décision intelligente
+                    decision = self._make_instant_decision(game_state, available_buttons)
+                    
+                    if decision:
+                        # Log l'état et l'action
+                        self.log_game_state(game_state, decision['action'])
+                        
+                        # Exécuter immédiatement
+                        self._execute_action_immediately(decision)
+                        self.session_stats['actions_taken'] += 1
+                        
+                        # NOUVEAU: Pause courte après action
+                        time.sleep(0.05)  # 50ms
+                
+        except Exception as e:
+            self.logger.error(f"Erreur gestion tour optimisée: {e}")
+
+    def _handle_game_active_optimized(self, captured_regions: Dict):
+        """Gestion optimisée du jeu actif"""
+        try:
+            # NOUVEAU: Analyse continue mais légère
+            self._continuous_game_analysis_and_decision(captured_regions)
+            
+            # NOUVEAU: Détection de fin de main
+            if self._detect_winner_crown(captured_regions):
+                self.logger.info("Couronne de victoire détectée - Fin de main")
+                self._handle_hand_ended(captured_regions)
+                
+        except Exception as e:
+            self.logger.error(f"Erreur gestion jeu actif optimisée: {e}")
     
     def _monitor_loop(self):
         """Thread de surveillance et sécurité"""
@@ -302,6 +450,12 @@ class PokerAgent:
                 
                 # Mise à jour des statistiques
                 self._update_stats()
+                
+                # Mise à jour des statistiques de session
+                self._update_session_stats()
+                
+                # Monitoring des performances
+                self._monitor_performance()
                 
                 time.sleep(5)  # Vérification toutes les 5 secondes
                 
@@ -545,23 +699,85 @@ class PokerAgent:
         except Exception as e:
             self.logger.error(f"Erreur mise à jour stats: {e}")
     
-    def _save_session_stats(self):
-        """Sauvegarde les statistiques de session"""
+    def _update_session_stats(self):
+        """Mise à jour des statistiques de session"""
         try:
-            session_duration = time.time() - self.stats['session_start']
+            session_duration = time.time() - self.session_stats['session_start']
             
-            stats_summary = {
-                'session_duration_hours': session_duration / 3600,
-                'hands_played': self.stats['hands_played'],
-                'hands_per_hour': (self.stats['hands_played'] / session_duration) * 3600,
-                'total_profit': self.stats['total_profit'],
-                'win_rate': self.stats['hands_won'] / max(self.stats['hands_played'], 1)
+            # Calculer les métriques
+            hands_per_hour = (self.session_stats['hands_played'] / session_duration) * 3600 if session_duration > 0 else 0
+            win_rate = (self.session_stats['hands_won'] / self.session_stats['hands_played']) * 100 if self.session_stats['hands_played'] > 0 else 0
+            actions_per_hand = self.session_stats['actions_taken'] / self.session_stats['hands_played'] if self.session_stats['hands_played'] > 0 else 0
+            
+            # Performance moyenne
+            avg_capture_time = sum(self.performance_metrics['capture_times']) / len(self.performance_metrics['capture_times']) if self.performance_metrics['capture_times'] else 0
+            avg_decision_time = sum(self.performance_metrics['decision_times']) / len(self.performance_metrics['decision_times']) if self.performance_metrics['decision_times'] else 0
+            
+            # Log des statistiques
+            self.logger.info(f"STATS - Session: {session_duration:.1f}s, Mains: {self.session_stats['hands_played']}, "
+                           f"Victoires: {self.session_stats['hands_won']} ({win_rate:.1f}%), "
+                           f"Actions: {self.session_stats['actions_taken']}, Erreurs: {self.session_stats['errors_count']}")
+            
+            self.logger.info(f"PERF - Capture: {avg_capture_time:.3f}s, Décision: {avg_decision_time:.3f}s, "
+                           f"Cycles: {self.performance_metrics['total_cycles']}")
+            
+        except Exception as e:
+            self.logger.error(f"Erreur mise à jour stats: {e}")
+
+    def _save_session_stats(self):
+        """Sauvegarde des statistiques de session"""
+        try:
+            session_duration = time.time() - self.session_stats['session_start']
+            
+            stats_data = {
+                'session_duration': session_duration,
+                'hands_played': self.session_stats['hands_played'],
+                'hands_won': self.session_stats['hands_won'],
+                'total_profit': self.session_stats['total_profit'],
+                'actions_taken': self.session_stats['actions_taken'],
+                'decisions_made': self.session_stats['decisions_made'],
+                'errors_count': self.session_stats['errors_count'],
+                'avg_capture_time': sum(self.performance_metrics['capture_times']) / len(self.performance_metrics['capture_times']) if self.performance_metrics['capture_times'] else 0,
+                'avg_decision_time': sum(self.performance_metrics['decision_times']) / len(self.performance_metrics['decision_times']) if self.performance_metrics['decision_times'] else 0,
+                'total_cycles': self.performance_metrics['total_cycles'],
+                'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
             }
             
-            self.logger.info(f"Statistiques de session: {stats_summary}")
+            # Sauvegarder dans un fichier JSON
+            with open('session_stats.json', 'w') as f:
+                json.dump(stats_data, f, indent=2)
+            
+            self.logger.info("Statistiques de session sauvegardées")
             
         except Exception as e:
             self.logger.error(f"Erreur sauvegarde stats: {e}")
+
+    def _monitor_performance(self):
+        """Monitoring en temps réel des performances"""
+        try:
+            # Vérifier les performances critiques
+            if self.performance_metrics['capture_times']:
+                recent_captures = self.performance_metrics['capture_times'][-10:]  # 10 dernières captures
+                avg_recent_capture = sum(recent_captures) / len(recent_captures)
+                
+                if avg_recent_capture > 0.1:  # Plus de 100ms
+                    self.logger.warning(f"Performance capture dégradée: {avg_recent_capture:.3f}s")
+                    self._recover_from_error('capture_error')
+            
+            if self.performance_metrics['decision_times']:
+                recent_decisions = self.performance_metrics['decision_times'][-10:]  # 10 dernières décisions
+                avg_recent_decision = sum(recent_decisions) / len(recent_decisions)
+                
+                if avg_recent_decision > 0.05:  # Plus de 50ms
+                    self.logger.warning(f"Performance décision dégradée: {avg_recent_decision:.3f}s")
+                    self._recover_from_error('decision_error')
+            
+            # Vérifier le taux d'erreurs
+            if self.session_stats['errors_count'] > 10:
+                self.logger.warning(f"Trop d'erreurs: {self.session_stats['errors_count']}")
+                
+        except Exception as e:
+            self.logger.error(f"Erreur monitoring performance: {e}")
 
     def _launch_initial_game(self):
         """Lance immédiatement une nouvelle partie au démarrage de l'agent"""
@@ -1379,41 +1595,107 @@ class PokerAgent:
             self.logger.error(f"Erreur exécution action: {e}")
 
     def _capture_ultra_fast(self) -> Optional[Dict]:
-        """Capture ultra-rapide avec cache et optimisation"""
+        """
+        Capture ultra-rapide avec cache intelligent et parallélisation
+        """
+        start_time = time.time()
+        
         try:
-            current_time = time.time()
+            # NOUVEAU: Vérifier le cache d'abord
+            if self.performance_config['cache_enabled']:
+                cache_age = time.time() - self.last_capture_time
+                if cache_age < self.cache_ttl and self.image_cache:
+                    self.logger.debug(f"Cache hit: {cache_age:.3f}s")
+                    return self.image_cache.copy()
             
-            # Vérifier l'intervalle minimum
-            if current_time - self.last_capture_time < self.min_capture_interval:
-                return self.image_cache.get('last_capture')
-            
-            # Capture de TOUTES les régions importantes pour détecter la partie
-            important_regions = [
-                'hand_area', 'community_cards', 'pot_area', 'my_stack_area',
+            # NOUVEAU: Capture optimisée avec régions prioritaires
+            critical_regions = [
                 'fold_button', 'call_button', 'raise_button', 'check_button', 'all_in_button',
-                'opponent1_stack_area', 'opponent2_stack_area',
-                'my_current_bet', 'opponent1_current_bet', 'opponent2_current_bet',
-                'new_hand_button', 'resume_button'
+                'hand_area', 'community_cards', 'pot_area', 'my_stack_area'
             ]
+            
             captured_regions = {}
             
-            for region_name in important_regions:
-                try:
-                    region_data = self.screen_capture.capture_region(region_name)
-                    if region_data is not None:
-                        captured_regions[region_name] = region_data
-                except Exception as e:
-                    self.logger.debug(f"Erreur capture {region_name}: {e}")
+            # Capture parallèle des régions critiques
+            if self.performance_config['parallel_processing']:
+                captured_regions = self._capture_regions_parallel(critical_regions)
+            else:
+                captured_regions = self._capture_regions_sequential(critical_regions)
+            
+            # NOUVEAU: Validation et nettoyage
+            valid_regions = {}
+            for region_name, image in captured_regions.items():
+                if image is not None and image.size > 0:
+                    valid_regions[region_name] = image
             
             # Mettre à jour le cache
-            self.image_cache['last_capture'] = captured_regions
-            self.last_capture_time = current_time
+            if valid_regions:
+                self.image_cache = valid_regions.copy()
+                self.last_capture_time = time.time()
+                
+                # NOUVEAU: Métriques de performance
+                capture_time = time.time() - start_time
+                self.performance_metrics['capture_times'].append(capture_time)
+                if len(self.performance_metrics['capture_times']) > 100:
+                    self.performance_metrics['capture_times'].pop(0)
+                
+                self.logger.debug(f"Capture ultra-rapide: {len(valid_regions)} régions en {capture_time:.3f}s")
+                return valid_regions
             
-            return captured_regions if captured_regions else None
+            return None
             
         except Exception as e:
             self.logger.error(f"Erreur capture ultra-rapide: {e}")
+            self.session_stats['errors_count'] += 1
             return None
+
+    def _capture_regions_parallel(self, regions: List[str]) -> Dict:
+        """
+        Capture parallèle des régions pour performance maximale
+        """
+        import concurrent.futures
+        
+        captured_regions = {}
+        
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+                # Lancer les captures en parallèle
+                future_to_region = {
+                    executor.submit(self.screen_capture.capture_region, region): region 
+                    for region in regions
+                }
+                
+                # Collecter les résultats
+                for future in concurrent.futures.as_completed(future_to_region, timeout=0.05):
+                    region = future_to_region[future]
+                    try:
+                        image = future.result()
+                        if image is not None:
+                            captured_regions[region] = image
+                    except Exception as e:
+                        self.logger.debug(f"Erreur capture {region}: {e}")
+            
+            return captured_regions
+            
+        except Exception as e:
+            self.logger.error(f"Erreur capture parallèle: {e}")
+            return {}
+
+    def _capture_regions_sequential(self, regions: List[str]) -> Dict:
+        """
+        Capture séquentielle des régions (fallback)
+        """
+        captured_regions = {}
+        
+        for region in regions:
+            try:
+                image = self.screen_capture.capture_region(region)
+                if image is not None:
+                    captured_regions[region] = image
+            except Exception as e:
+                self.logger.debug(f"Erreur capture {region}: {e}")
+        
+        return captured_regions
     
     def _detect_hand_change(self, current_cards: List[str]) -> bool:
         """Détecte si on a changé de main"""
@@ -1898,9 +2180,19 @@ class PokerAgent:
     
     def _make_instant_decision(self, game_state: Dict, available_buttons: List[Dict]) -> Dict:
         """
-        Prend une décision intelligente basée sur la stratégie agressive
+        Décision ultra-rapide avec IA avancée intégrée
         """
+        start_time = time.time()
+        
         try:
+            # NOUVEAU: Vérifier le cache de décision
+            decision_key = self._generate_decision_key(game_state, available_buttons)
+            if decision_key in self.decision_cache:
+                cached_decision = self.decision_cache[decision_key]
+                if time.time() - cached_decision['timestamp'] < 0.1:  # 100ms TTL
+                    self.logger.debug("Cache hit pour décision")
+                    return cached_decision['decision']
+            
             # Extraire les informations critiques du jeu
             my_cards = game_state.get('my_cards', []) if game_state else []
             community_cards = game_state.get('community_cards', []) if game_state else []
@@ -1912,52 +2204,67 @@ class PokerAgent:
             timer = game_state.get('timer', 60) if game_state else 60
             num_players = game_state.get('num_players', 3) if game_state else 3
             
-            # Évaluer la force de la main
-            hand_strength = self._calculate_hand_strength_ultra_fast(my_cards, community_cards)
+            # NOUVEAU: Validation des cartes avec couleurs
+            valid_cards = []
+            for card in my_cards:
+                if isinstance(card, str) and len(card) >= 2:
+                    rank = card[0]
+                    suit = card[1] if len(card) > 1 else '?'
+                    if suit in '♠♥♦♣':
+                        valid_cards.append(card)
             
-            # Calculer les métriques importantes
+            if not valid_cards:
+                self.logger.warning("Aucune carte valide détectée")
+                valid_cards = my_cards  # Utiliser les cartes même sans couleur
+            
+            # NOUVEAU: Calcul avancé de force de main
+            hand_strength = self._calculate_advanced_hand_strength(valid_cards, community_cards)
+            
+            # NOUVEAU: Calculs avancés avec IA
             spr = self._calculate_stack_to_pot_ratio(my_stack, pot_size) if pot_size > 0 else 10
             pot_odds = self._calculate_pot_odds(pot_size, big_blind) if big_blind > 0 else 0.25
+            equity = self._calculate_equity_vs_range(valid_cards, community_cards)
+            
+            # NOUVEAU: Métriques avancées
+            position_bonus = self._get_position_bonus(position)
+            timer_pressure = self._get_timer_pressure(timer)
+            stack_pressure = self._get_stack_pressure(my_stack, pot_size)
             
             # Validation de l'action selon les boutons disponibles
             available_actions = [btn['name'].lower() for btn in available_buttons]
             
-            # LOGIQUE AGRESSIVE ULTRA-RÉACTIVE
-            if timer < 15:  # TIMER URGENT
-                if 'all_in' in available_actions:
-                    return {'action': 'all_in', 'reason': 'Timer urgent'}
-                elif 'raise' in available_actions:
-                    return {'action': 'raise', 'reason': 'Timer urgent'}
-                elif 'call' in available_actions:
-                    return {'action': 'call', 'reason': 'Timer urgent'}
+            # NOUVEAU: Décision avec IA avancée
+            decision = self._make_ai_decision(
+                valid_cards, community_cards, hand_strength, spr, pot_odds, equity,
+                position_bonus, timer_pressure, stack_pressure, available_actions, timer
+            )
             
-            # LOGIQUE BASÉE SUR LA FORCE DE MAIN
-            if hand_strength > 0.7:  # Main forte
-                if 'raise' in available_actions:
-                    return {'action': 'raise', 'reason': 'Main forte'}
-                elif 'call' in available_actions:
-                    return {'action': 'call', 'reason': 'Main forte'}
-            elif hand_strength > 0.4:  # Main moyenne
-                if 'call' in available_actions:
-                    return {'action': 'call', 'reason': 'Main moyenne'}
-                elif 'check' in available_actions:
-                    return {'action': 'check', 'reason': 'Main moyenne'}
-            else:  # Main faible
-                if 'fold' in available_actions:
-                    return {'action': 'fold', 'reason': 'Main faible'}
-                elif 'check' in available_actions:
-                    return {'action': 'check', 'reason': 'Main faible'}
+            # NOUVEAU: Cache de la décision
+            if decision:
+                self.decision_cache[decision_key] = {
+                    'decision': decision,
+                    'timestamp': time.time()
+                }
+                
+                # Limiter la taille du cache
+                if len(self.decision_cache) > 1000:
+                    oldest_key = min(self.decision_cache.keys(), 
+                                   key=lambda k: self.decision_cache[k]['timestamp'])
+                    del self.decision_cache[oldest_key]
             
-            # FALLBACK INTELLIGENT
-            if 'fold' in available_actions:
-                return {'action': 'fold', 'reason': 'Fallback'}
-            elif 'check' in available_actions:
-                return {'action': 'check', 'reason': 'Fallback'}
-            else:
-                return {'action': 'fold', 'reason': 'Fallback'}
+            # Métriques de performance
+            decision_time = time.time() - start_time
+            self.performance_metrics['decision_times'].append(decision_time)
+            if len(self.performance_metrics['decision_times']) > 100:
+                self.performance_metrics['decision_times'].pop(0)
+            
+            self.session_stats['decisions_made'] += 1
+            
+            return decision if decision else {'action': 'fold', 'reason': 'Fallback'}
 
         except Exception as e:
-            self.logger.error(f"Erreur décision: {e}")
+            self.logger.error(f"Erreur décision IA: {e}")
+            self.session_stats['errors_count'] += 1
             # Fallback: fold si possible, sinon check
             available_actions = [btn['name'].lower() for btn in available_buttons]
             if 'fold' in available_actions:
@@ -1966,6 +2273,155 @@ class PokerAgent:
                 return {'action': 'check', 'reason': 'Erreur'}
             else:
                 return {'action': 'fold', 'reason': 'Erreur'}
+
+    def _generate_decision_key(self, game_state: Dict, available_buttons: List[Dict]) -> str:
+        """
+        Génère une clé unique pour le cache de décision
+        """
+        try:
+            my_cards = game_state.get('my_cards', []) if game_state else []
+            community_cards = game_state.get('community_cards', []) if game_state else []
+            my_stack = game_state.get('my_stack', 0) if game_state else 500
+            pot_size = game_state.get('pot_size', 0) if game_state else 0
+            position = game_state.get('position', 'BB') if game_state else 'BB'
+            timer = game_state.get('timer', 60) if game_state else 60
+            
+            button_names = [btn['name'] for btn in available_buttons]
+            
+            key_parts = [
+                str(sorted(my_cards)),
+                str(sorted(community_cards)),
+                f"{my_stack:.1f}",
+                f"{pot_size:.1f}",
+                position,
+                f"{timer}",
+                str(sorted(button_names))
+            ]
+            
+            return "|".join(key_parts)
+            
+        except Exception as e:
+            self.logger.debug(f"Erreur génération clé: {e}")
+            return str(time.time())
+
+    def _calculate_advanced_hand_strength(self, my_cards: List[str], community_cards: List[str]) -> float:
+        """
+        Calcul avancé de force de main avec IA
+        """
+        try:
+            if not my_cards:
+                return 0.0
+            
+            # NOUVEAU: Utiliser l'IA avancée si disponible
+            if hasattr(self, 'advanced_ai') and self.advanced_ai:
+                try:
+                    return self.advanced_ai.calculate_hand_strength(my_cards, community_cards)
+                except Exception as e:
+                    self.logger.debug(f"IA avancée échouée, fallback: {e}")
+            
+            # Fallback vers le calcul rapide
+            return self._calculate_hand_strength_ultra_fast(my_cards, community_cards)
+            
+        except Exception as e:
+            self.logger.error(f"Erreur calcul force main: {e}")
+            return 0.0
+
+    def _make_ai_decision(self, my_cards: List[str], community_cards: List[str], 
+                         hand_strength: float, spr: float, pot_odds: float, equity: float,
+                         position_bonus: float, timer_pressure: float, stack_pressure: float,
+                         available_actions: List[str], timer: int) -> Dict:
+        """
+        Décision intelligente avec IA avancée
+        """
+        try:
+            # NOUVEAU: Score composite
+            composite_score = (
+                hand_strength * 0.4 +
+                equity * 0.3 +
+                position_bonus * 0.1 +
+                (1 - timer_pressure) * 0.1 +
+                (1 - stack_pressure) * 0.1
+            )
+            
+            # NOUVEAU: Logique adaptative
+            if timer < 10:  # TIMER CRITIQUE
+                if 'all_in' in available_actions and composite_score > 0.3:
+                    return {'action': 'all_in', 'reason': 'Timer critique'}
+                elif 'raise' in available_actions and composite_score > 0.2:
+                    return {'action': 'raise', 'reason': 'Timer critique'}
+                elif 'call' in available_actions and composite_score > 0.1:
+                    return {'action': 'call', 'reason': 'Timer critique'}
+            
+            # NOUVEAU: Stratégie basée sur le score composite
+            if composite_score > 0.8:  # Main excellente
+                if 'raise' in available_actions:
+                    return {'action': 'raise', 'reason': 'Main excellente'}
+                elif 'call' in available_actions:
+                    return {'action': 'call', 'reason': 'Main excellente'}
+            elif composite_score > 0.6:  # Main forte
+                if 'raise' in available_actions:
+                    return {'action': 'raise', 'reason': 'Main forte'}
+                elif 'call' in available_actions:
+                    return {'action': 'call', 'reason': 'Main forte'}
+            elif composite_score > 0.4:  # Main moyenne
+                if 'call' in available_actions and pot_odds > 0.3:
+                    return {'action': 'call', 'reason': 'Pot odds favorables'}
+                elif 'check' in available_actions:
+                    return {'action': 'check', 'reason': 'Main moyenne'}
+            elif composite_score > 0.2:  # Main faible
+                if 'check' in available_actions:
+                    return {'action': 'check', 'reason': 'Main faible'}
+                elif 'fold' in available_actions:
+                    return {'action': 'fold', 'reason': 'Main faible'}
+            else:  # Main très faible
+                if 'fold' in available_actions:
+                    return {'action': 'fold', 'reason': 'Main très faible'}
+                elif 'check' in available_actions:
+                    return {'action': 'check', 'reason': 'Main très faible'}
+            
+            # Fallback
+            if 'fold' in available_actions:
+                return {'action': 'fold', 'reason': 'Fallback'}
+            elif 'check' in available_actions:
+                return {'action': 'check', 'reason': 'Fallback'}
+            else:
+                return {'action': 'fold', 'reason': 'Fallback'}
+                
+        except Exception as e:
+            self.logger.error(f"Erreur décision IA: {e}")
+            return {'action': 'fold', 'reason': 'Erreur'}
+
+    def _get_position_bonus(self, position: str) -> float:
+        """Bonus de position"""
+        position_bonuses = {
+            'BTN': 0.3, 'CO': 0.2, 'MP': 0.1, 'UTG': 0.0, 'BB': 0.1, 'SB': 0.0
+        }
+        return position_bonuses.get(position, 0.0)
+
+    def _get_timer_pressure(self, timer: int) -> float:
+        """Pression du timer (0-1)"""
+        if timer < 10:
+            return 1.0
+        elif timer < 20:
+            return 0.8
+        elif timer < 30:
+            return 0.5
+        else:
+            return 0.0
+
+    def _get_stack_pressure(self, stack: float, pot: float) -> float:
+        """Pression du stack (0-1)"""
+        if pot == 0:
+            return 0.0
+        spr = stack / pot
+        if spr < 1:
+            return 1.0
+        elif spr < 3:
+            return 0.7
+        elif spr < 10:
+            return 0.3
+        else:
+            return 0.0
     
     def _determine_street(self, community_cards_count: int) -> str:
         """Détermine la rue actuelle"""
@@ -2027,6 +2483,91 @@ class PokerAgent:
             
         except Exception as e:
             self.logger.error(f"Erreur détection couronne de victoire: {e}")
+            return False
+
+    def _safe_execute(self, func, *args, **kwargs):
+        """
+        Exécution sécurisée avec gestion d'erreurs et recovery
+        """
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            self.logger.error(f"Erreur dans {func.__name__}: {e}")
+            self.session_stats['errors_count'] += 1
+            return None
+
+    def _recover_from_error(self, error_type: str, context: Dict = None):
+        """
+        Recovery automatique après erreur
+        """
+        try:
+            self.logger.warning(f"Recovery automatique pour: {error_type}")
+            
+            if error_type == 'capture_error':
+                # Réinitialiser le cache
+                self.image_cache.clear()
+                self.last_capture_time = 0
+                time.sleep(0.1)
+                
+            elif error_type == 'decision_error':
+                # Réinitialiser le cache de décision
+                self.decision_cache.clear()
+                time.sleep(0.05)
+                
+            elif error_type == 'ocr_error':
+                # Réinitialiser l'analyseur d'image
+                self.image_analyzer = ImageAnalyzer()
+                time.sleep(0.1)
+                
+            elif error_type == 'button_error':
+                # Réinitialiser le détecteur de boutons
+                self.button_detector = ButtonDetector()
+                time.sleep(0.05)
+                
+            self.logger.info(f"Recovery terminé pour: {error_type}")
+            
+        except Exception as e:
+            self.logger.error(f"Erreur lors du recovery: {e}")
+
+    def _validate_game_data(self, game_data: Dict) -> bool:
+        """
+        Validation robuste des données de jeu
+        """
+        try:
+            if not game_data:
+                return False
+            
+            # Vérifications de base
+            required_fields = ['my_cards', 'my_stack', 'pot_size', 'position', 'timer']
+            for field in required_fields:
+                if field not in game_data:
+                    self.logger.debug(f"Champ manquant: {field}")
+                    return False
+            
+            # Validation des cartes
+            my_cards = game_data.get('my_cards', [])
+            if not isinstance(my_cards, list):
+                return False
+            
+            # Validation du stack
+            my_stack = game_data.get('my_stack', 0)
+            if not isinstance(my_stack, (int, float)) or my_stack < 0:
+                return False
+            
+            # Validation du pot
+            pot_size = game_data.get('pot_size', 0)
+            if not isinstance(pot_size, (int, float)) or pot_size < 0:
+                return False
+            
+            # Validation du timer
+            timer = game_data.get('timer', 0)
+            if not isinstance(timer, (int, float)) or timer < 0:
+                return False
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Erreur validation données: {e}")
             return False
 
 def main():
