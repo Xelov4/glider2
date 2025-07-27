@@ -95,7 +95,7 @@ class ScreenCapture:
                 )
     
     def capture_region(self, region_name: str) -> Optional[np.ndarray]:
-        """Capture une région spécifique de l'écran"""
+        """Capture une région spécifique de l'écran en haute qualité"""
         try:
             if region_name not in self.regions:
                 self.logger.warning(f"Région inconnue: {region_name}")
@@ -111,9 +111,70 @@ class ScreenCapture:
                 current_time - self.last_capture_time < self.cache_duration):
                 return self.capture_cache[region_name]
             
-            # Capture d'écran
+            # NOUVEAU: Système hybride de capture maximale + post-traitement
+            try:
+                from .hybrid_capture_system import HybridCaptureSystem, CaptureConfig
+                
+                # Configuration optimisée pour les cartes
+                config = CaptureConfig(
+                    capture_method="max_quality",
+                    post_processing=True,
+                    upscale_factor=3.0,  # Upscaling agressif
+                    enhancement_strength=1.8,
+                    noise_reduction=True,
+                    sharpening=True,
+                    contrast_boost=True
+                )
+                
+                hybrid_capture = HybridCaptureSystem(config)
+                image = hybrid_capture.capture_with_max_quality(region_name)
+                
+                if image is not None:
+                    # Métriques de performance
+                    metrics = hybrid_capture.get_performance_metrics()
+                    self.logger.debug(f"Capture hybride {region_name}: amélioration +{metrics['avg_quality_improvement']:.1f}%")
+                    
+                    # Mettre en cache
+                    self.capture_cache[region_name] = image
+                    self.last_capture_time = current_time
+                    
+                    return image
+                    
+            except Exception as e:
+                self.logger.debug(f"Capture hybride non disponible: {e}")
+            
+            # FALLBACK: Capture standard si HQ échoue
             screenshot = pyautogui.screenshot(region=(region.x, region.y, region.width, region.height))
             image = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+            
+            # SYSTÈME HYBRIDE: Amélioration intelligente pour les cartes
+            if region_name in ['hand_area', 'community_cards']:
+                # Upscaling agressif pour les cartes
+                height, width = image.shape[:2]
+                if width < 600:  # Seuil plus élevé pour plus de qualité
+                    scale_factor = 3.0  # Facteur plus agressif
+                    new_width = int(width * scale_factor)
+                    new_height = int(height * scale_factor)
+                    image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
+                    
+                    # Amélioration avancée du contraste
+                    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+                    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+                    lab[:,:,0] = clahe.apply(lab[:,:,0])
+                    
+                    # Amélioration des couleurs
+                    lab[:,:,1] = cv2.multiply(lab[:,:,1], 1.2)
+                    lab[:,:,2] = cv2.multiply(lab[:,:,2], 1.2)
+                    image = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+                    
+                    # Sharpening pour les symboles de cartes
+                    kernel = np.array([[-1,-1,-1],
+                                     [-1, 9,-1],
+                                     [-1,-1,-1]]) * 1.5
+                    sharpened = cv2.filter2D(image, -1, kernel)
+                    image = cv2.addWeighted(image, 0.6, sharpened, 0.4, 0)
+                    
+                    self.logger.debug(f"Image hybride améliorée {region_name}: {width}x{height} → {new_width}x{new_height}")
             
             # Mettre en cache
             self.capture_cache[region_name] = image

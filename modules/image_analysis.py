@@ -97,12 +97,14 @@ class ImageAnalyzer:
 
     def detect_cards(self, image: np.ndarray, region_name: str = "hand_area") -> List[Card]:
         """
-        Détecte les cartes avec une approche multi-méthodes robuste
+        Détecte les cartes avec système hybride optimisé
         """
         try:
-            self.logger.debug(f"Détection de cartes dans {region_name}")
+            self.logger.debug(f"🔧 Détection cartes {region_name} - Image: {image.shape}")
             
-            # NOUVEAU: APPROCHE 1 - MACHINE LEARNING (priorité absolue)
+            # SYSTÈME HYBRIDE: Workflow optimisé avec images haute qualité
+            
+            # 1. MACHINE LEARNING (priorité absolue)
             try:
                 from .card_ml_detector import CardMLDetector
                 ml_detector = CardMLDetector()
@@ -120,35 +122,36 @@ class ImageAnalyzer:
                             )
                             converted_cards.append(card)
                         
-                        self.logger.debug(f"Cartes détectées par ML: {[f'{c.rank}{c.suit}' for c in converted_cards]}")
+                        self.logger.debug(f"✅ ML détecté {len(converted_cards)} cartes: {[f'{c.rank}{c.suit}' for c in converted_cards]}")
                         return converted_cards
             except Exception as e:
                 self.logger.debug(f"ML non disponible: {e}")
             
-            # APPROCHE 2: DÉTECTION ULTRA-RAPIDE (priorité absolue)
-            fast_cards = self._detect_cards_ultra_fast(image)
-            if fast_cards:
-                self.logger.debug(f"Cartes détectées ultra-rapide: {[f'{c.rank}{c.suit}' for c in fast_cards]}")
-                return fast_cards
-            
-            # APPROCHE 3: OCR avec prétraitement optimisé
+            # 2. OCR optimisé pour images haute qualité
             ocr_cards = self._detect_cards_ocr_optimized(image)
             if ocr_cards:
-                self.logger.debug(f"Cartes détectées par OCR: {[f'{c.rank}{c.suit}' for c in ocr_cards]}")
+                self.logger.debug(f"✅ OCR détecté {len(ocr_cards)} cartes: {[f'{c.rank}{c.suit}' for c in ocr_cards]}")
                 return ocr_cards
             
-            # APPROCHE 4: Détection par contours et analyse de forme
+            # 3. Détection ultra-rapide
+            fast_cards = self._detect_cards_ultra_fast(image)
+            if fast_cards:
+                self.logger.debug(f"✅ Fast détecté {len(fast_cards)} cartes: {[f'{c.rank}{c.suit}' for c in fast_cards]}")
+                return fast_cards
+            
+            # 4. Contours (fallback)
             contour_cards = self._detect_cards_by_contours(image)
             if contour_cards:
-                self.logger.debug(f"Cartes détectées par contours: {[f'{c.rank}{c.suit}' for c in contour_cards]}")
+                self.logger.debug(f"✅ Contours détecté {len(contour_cards)} cartes: {[f'{c.rank}{c.suit}' for c in contour_cards]}")
                 return contour_cards
             
-            # APPROCHE 5: Détection par couleur (rouge/noir)
+            # 5. Couleurs (dernier recours)
             color_cards = self._detect_cards_by_color(image)
             if color_cards:
-                self.logger.debug(f"Cartes détectées par couleur: {[f'{c.rank}{c.suit}' for c in color_cards]}")
+                self.logger.debug(f"✅ Couleurs détecté {len(color_cards)} cartes: {[f'{c.rank}{c.suit}' for c in color_cards]}")
                 return color_cards
             
+            self.logger.debug(f"❌ Aucune carte détectée dans {region_name}")
             return []
             
         except Exception as e:
