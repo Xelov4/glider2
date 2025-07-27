@@ -98,7 +98,7 @@ DEFAULT_REGIONS = {
 # Configuration par défaut
 DEFAULT_CONFIG = {
     'Display': {
-        'target_window_title': 'PokerStars',
+        'target_window_title': 'Betclic Poker',
         'capture_fps': '10',
         'debug_mode': 'false'
     },

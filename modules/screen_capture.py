@@ -40,7 +40,7 @@ class ScreenCapture:
         # Configuration de capture
         self.capture_fps = 10
         self.debug_mode = False
-        self.target_window_title = "PokerStars"
+        self.target_window_title = "Betclic Poker"
         
         # Cache pour optimiser les performances
         self.last_capture_time = 0
