@@ -442,3 +442,43 @@ class AutomationEngine:
             self.click_button("ALL_IN", all_in_pos)
         except Exception as e:
             self.logger.error(f"Erreur clic all-in: {e}") 
+
+    def click_at_position(self, x: int, y: int, button: str = 'left'):
+        """
+        Clique à une position spécifique avec mouvement naturel
+        """
+        try:
+            # Vérifier le délai minimum
+            self.ensure_minimum_delay()
+            
+            # Coordonnées avec randomisation
+            x += random.randint(-self.click_randomization, self.click_randomization)
+            y += random.randint(-self.click_randomization, self.click_randomization)
+            
+            # Vérifier que la position est valide
+            if not self.is_valid_screen_position((x, y)):
+                self.logger.warning(f"Position invalide: ({x}, {y})")
+                return False
+            
+            # Mouvement courbe vers la cible
+            self.move_to_coordinates_curved((x, y))
+            
+            # Délai humain avant le clic
+            if self.human_delays:
+                time.sleep(random.uniform(0.05, 0.15))
+            
+            # Clic avec randomisation
+            pyautogui.click(x, y, button=button)
+            
+            # Délai après le clic
+            if self.human_delays:
+                time.sleep(random.uniform(0.1, 0.3))
+            
+            self.last_action_time = time.time()
+            self.logger.info(f"Clic à la position ({x}, {y})")
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Erreur clic à position ({x}, {y}): {e}")
+            return False 

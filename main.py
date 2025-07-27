@@ -153,37 +153,80 @@ class PokerAgent:
         """Boucle principale de l'agent"""
         self.logger.info("Boucle principale démarrée")
         
+        loop_count = 0
+        no_game_detected_count = 0
+        
         while self.running:
             try:
+                loop_count += 1
+                
                 if self.paused:
                     time.sleep(1)
                     continue
                 
+                # Debug: afficher le compteur de boucle
+                if loop_count % 50 == 0:  # Toutes les 50 itérations
+                    self.logger.info(f"Boucle #{loop_count} - Agent en attente...")
+                
                 # 1. Capture d'écran
                 captured_regions = self.screen_capture.capture_all_regions()
                 if not captured_regions:
+                    if loop_count % 10 == 0:  # Debug moins fréquent
+                        self.logger.debug("Aucune région capturée")
                     time.sleep(0.1)
                     continue
+                
+                # Debug: afficher le nombre de régions capturées
+                if loop_count % 10 == 0:
+                    self.logger.info(f"Régions capturées: {len(captured_regions)}")
                 
                 # 2. Analyse des images
                 game_info = self._analyze_game_state(captured_regions)
-                if not game_info:
+                
+                # 3. Si pas de partie détectée, chercher le bouton "New Hand"
+                if not game_info or not game_info.get('available_actions'):
+                    no_game_detected_count += 1
+                    
+                    if no_game_detected_count % 20 == 0:  # Toutes les 20 itérations sans jeu
+                        self.logger.info("🎮 Aucune partie détectée - Recherche du bouton 'New Hand'...")
+                        
+                        # Chercher et cliquer sur "New Hand"
+                        if self._try_start_new_hand(captured_regions):
+                            self.logger.info("✅ Nouvelle partie lancée !")
+                            no_game_detected_count = 0  # Reset le compteur
+                        else:
+                            self.logger.debug("Bouton 'New Hand' non trouvé ou non cliquable")
+                    
                     time.sleep(0.1)
                     continue
                 
-                # 3. Mise à jour de l'état du jeu
+                # Reset le compteur si une partie est détectée
+                no_game_detected_count = 0
+                
+                # Debug: afficher les infos de jeu
+                self.logger.info(f"Info jeu détectée: {list(game_info.keys())}")
+                
+                # 4. Mise à jour de l'état du jeu
                 self.game_state.update(game_info)
                 
-                # 4. Vérification si c'est notre tour
+                # 5. Vérification si c'est notre tour
                 if not self.game_state.is_my_turn:
+                    if loop_count % 10 == 0:
+                        self.logger.debug("Pas notre tour - en attente...")
                     time.sleep(0.1)
                     continue
                 
-                # 5. Prise de décision
+                # Debug: c'est notre tour !
+                self.logger.info("🎯 C'EST NOTRE TOUR !")
+                
+                # 6. Prise de décision
                 decision = self._make_decision()
                 if decision:
-                    # 6. Exécution de l'action
+                    self.logger.info(f"🎲 Décision prise: {decision}")
+                    # 7. Exécution de l'action
                     self._execute_action(decision)
+                else:
+                    self.logger.warning("❌ Aucune décision prise")
                 
                 # Contrôle du FPS
                 time.sleep(1.0 / self.config.getint('Display', 'capture_fps', fallback=10))
@@ -225,6 +268,13 @@ class PokerAgent:
             if 'action_buttons' in captured_regions:
                 buttons = self.button_detector.detect_available_actions(captured_regions['action_buttons'])
                 game_info['available_actions'] = buttons
+                
+                # Debug: afficher les boutons détectés
+                if buttons:
+                    button_names = [btn.name for btn in buttons]
+                    self.logger.info(f"🎮 Boutons détectés: {button_names}")
+                else:
+                    self.logger.debug("Aucun bouton d'action détecté")
             
             # Analyse des stacks et mises
             game_info.update(self._analyze_stacks_and_bets(captured_regions))
@@ -419,6 +469,92 @@ class PokerAgent:
             
         except Exception as e:
             self.logger.error(f"Erreur sauvegarde stats: {e}")
+
+    def _try_start_new_hand(self, captured_regions: Dict) -> bool:
+        """Essaie de lancer une nouvelle partie en cliquant sur 'New Hand'"""
+        try:
+            # 1. Chercher le bouton "New Hand" dans les régions capturées
+            if 'new_hand_button' in captured_regions:
+                self.logger.info("🔍 Bouton 'New Hand' trouvé - Tentative de clic...")
+                
+                # Obtenir les coordonnées du bouton
+                region_info = self.screen_capture.get_region_info('new_hand_button')
+                if region_info:
+                    x, y = region_info['x'], region_info['y']
+                    width, height = region_info['width'], region_info['height']
+                    
+                    # Calculer le centre du bouton
+                    center_x = x + width // 2
+                    center_y = y + height // 2
+                    
+                    # Cliquer sur le bouton
+                    self.logger.info(f"🖱️ Clic sur 'New Hand' à ({center_x}, {center_y})")
+                    self.automation.click_at_position(center_x, center_y)
+                    
+                    # Attendre un peu pour que la nouvelle partie se lance
+                    time.sleep(2)
+                    
+                    return True
+            
+            # 2. Si pas de région spécifique, chercher dans toute l'image
+            self.logger.info("🔍 Recherche du bouton 'New Hand' dans l'écran complet...")
+            
+            # Capturer l'écran complet
+            import pyautogui
+            screenshot = pyautogui.screenshot()
+            
+            # Chercher le texte "New Hand" ou "Nouvelle Main"
+            import pytesseract
+            text = pytesseract.image_to_string(screenshot, config='--psm 6')
+            
+            if 'new hand' in text.lower() or 'nouvelle main' in text.lower():
+                self.logger.info("✅ Texte 'New Hand' détecté dans l'écran")
+                
+                # Chercher les coordonnées du texte
+                # Note: Cette méthode est basique, en production on utiliserait une détection plus sophistiquée
+                import cv2
+                import numpy as np
+                
+                # Convertir l'image pour la recherche
+                img_np = np.array(screenshot)
+                img_gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
+                
+                # Chercher le texte avec OCR et obtenir les coordonnées
+                data = pytesseract.image_to_data(img_gray, output_type=pytesseract.Output.DICT)
+                
+                for i, text_detected in enumerate(data['text']):
+                    if 'new hand' in text_detected.lower() or 'nouvelle main' in text_detected.lower():
+                        x = data['left'][i]
+                        y = data['top'][i]
+                        w = data['width'][i]
+                        h = data['height'][i]
+                        
+                        # Cliquer au centre du texte détecté
+                        center_x = x + w // 2
+                        center_y = y + h // 2
+                        
+                        self.logger.info(f"🖱️ Clic sur 'New Hand' détecté à ({center_x}, {center_y})")
+                        self.automation.click_at_position(center_x, center_y)
+                        
+                        time.sleep(2)
+                        return True
+            
+            # 3. Méthode de fallback: cliquer sur une position par défaut
+            self.logger.info("🔄 Tentative de clic sur position par défaut...")
+            
+            # Position par défaut pour le bouton "New Hand" (basée sur calibrated_regions.json)
+            default_x = 4338 + 290 // 2  # x + width/2
+            default_y = 962 + 60 // 2    # y + height/2
+            
+            self.logger.info(f"🖱️ Clic sur position par défaut ({default_x}, {default_y})")
+            self.automation.click_at_position(default_x, default_y)
+            
+            time.sleep(2)
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Erreur lors de la tentative de lancement de nouvelle partie: {e}")
+            return False
 
 def main():
     """Point d'entrée principal"""
