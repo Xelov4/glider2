@@ -66,7 +66,7 @@ from modules.image_analysis import ImageAnalyzer
 from modules.button_detector import ButtonDetector
 from modules.game_state import GameState
 from modules.strategy_engine import GeneralStrategy
-from modules.spin_rush_strategy import SpinRushStrategy
+from modules.aggressive_strategy import AggressiveStrategy
 from modules.automation import AutomationEngine
 from modules.advanced_ai_engine import AdvancedAIEngine
 from modules.constants import Position, Action, GamePhase, DEFAULT_CONFIG
@@ -262,7 +262,7 @@ class PokerAgent:
                         
                         # Détection de la couronne de victoire (fin de manche)
                         if self._detect_winner_crown(captured_regions):
-                            self.logger.info("🎉 COURONNE DE VICTOIRE DÉTECTÉE - Fin de manche!")
+                            self.logger.info("COURONNE DE VICTOIRE DÉTECTÉE - Fin de manche!")
                             self._handle_hand_ended(captured_regions)
                             time.sleep(2)  # Attendre que l'animation se termine
                             continue
@@ -425,20 +425,9 @@ class PokerAgent:
             self.logger.error(f"Erreur décision IA: {e}")
             return None
     
-    def _should_use_spin_rush_strategy(self) -> bool:
-        """Détermine si on doit utiliser la stratégie Spin & Rush"""
-        # Par défaut, utiliser Spin & Rush sauf si on détecte clairement un format différent
-        # Logique pour détecter le format Spin & Rush
-        # Par exemple: 3 joueurs, timer de blinds, stack 500
-        
-        # Si on a des informations claires sur le format
-        if hasattr(self.game_state, 'num_players') and self.game_state.num_players > 3:
-            return False  # Plus de 3 joueurs = poker standard
-        
-        if hasattr(self.game_state, 'my_stack') and self.game_state.my_stack > 1000:
-            return False  # Stack élevé = probablement poker standard
-        
-        # Par défaut, utiliser Spin & Rush (plus agressif)
+    def _should_use_aggressive_strategy(self) -> bool:
+        """Détermine si on doit utiliser la stratégie agressive"""
+        # Toujours utiliser la stratégie agressive
         return True
     
     def _execute_action(self, decision: Dict):
@@ -1908,7 +1897,7 @@ class PokerAgent:
     
     def _make_instant_decision(self, game_state: Dict, available_buttons: List[Dict]) -> Dict:
         """
-        Prend une décision intelligente basée sur la stratégie Spin & Rush
+        Prend une décision intelligente basée sur la stratégie agressive
         """
         try:
             # Extraire les informations critiques du jeu
@@ -1929,50 +1918,50 @@ class PokerAgent:
             spr = self._calculate_stack_to_pot_ratio(my_stack, pot_size) if pot_size > 0 else 10
             pot_odds = self._calculate_pot_odds(pot_size, big_blind) if big_blind > 0 else 0.25
             
-            # DÉCISION SPIN & RUSH INTELLIGENTE
-            self.logger.info(f"SPIN & RUSH - Cartes: {my_cards}, Stack: {my_stack}, Pot: {pot_size}, Force: {hand_strength:.2f}")
+            # DÉCISION AGRESSIVE INTELLIGENTE
+            self.logger.info(f"STRATEGIE AGRESSIVE - Cartes: {my_cards}, Stack: {my_stack}, Pot: {pot_size}, Force: {hand_strength:.2f}")
             
             # Validation de l'action selon les boutons disponibles
             available_actions = [btn['name'].lower() for btn in available_buttons]
             self.logger.info(f"Boutons disponibles: {available_actions}")
             
-            # LOGIQUE SPIN & RUSH ULTRA-AGRESSIVE
+            # LOGIQUE AGRESSIVE ULTRA-RÉACTIVE
             if timer < 15:  # TIMER URGENT
                 self.logger.warning("TIMER URGENT - MODE ULTRA-AGRESSIF")
                 if 'all_in' in available_actions:
-                    return {'action': 'all_in', 'reason': 'Spin & Rush - Timer urgent'}
+                    return {'action': 'all_in', 'reason': 'Stratégie Agressive - Timer urgent'}
                 elif 'raise' in available_actions:
-                    return {'action': 'raise', 'reason': 'Spin & Rush - Timer urgent'}
+                    return {'action': 'raise', 'reason': 'Stratégie Agressive - Timer urgent'}
                 elif 'call' in available_actions:
-                    return {'action': 'call', 'reason': 'Spin & Rush - Timer urgent'}
+                    return {'action': 'call', 'reason': 'Stratégie Agressive - Timer urgent'}
             
             # LOGIQUE BASÉE SUR LA FORCE DE MAIN
             if hand_strength > 0.7:  # Main forte
                 if 'raise' in available_actions:
-                    return {'action': 'raise', 'reason': 'Spin & Rush - Main forte'}
+                    return {'action': 'raise', 'reason': 'Stratégie Agressive - Main forte'}
                 elif 'call' in available_actions:
-                    return {'action': 'call', 'reason': 'Spin & Rush - Main forte'}
+                    return {'action': 'call', 'reason': 'Stratégie Agressive - Main forte'}
             elif hand_strength > 0.4:  # Main moyenne
                 if 'call' in available_actions:
-                    return {'action': 'call', 'reason': 'Spin & Rush - Main moyenne'}
+                    return {'action': 'call', 'reason': 'Stratégie Agressive - Main moyenne'}
                 elif 'check' in available_actions:
-                    return {'action': 'check', 'reason': 'Spin & Rush - Main moyenne'}
+                    return {'action': 'check', 'reason': 'Stratégie Agressive - Main moyenne'}
             else:  # Main faible
                 if 'fold' in available_actions:
-                    return {'action': 'fold', 'reason': 'Spin & Rush - Main faible'}
+                    return {'action': 'fold', 'reason': 'Stratégie Agressive - Main faible'}
                 elif 'check' in available_actions:
-                    return {'action': 'check', 'reason': 'Spin & Rush - Main faible'}
+                    return {'action': 'check', 'reason': 'Stratégie Agressive - Main faible'}
             
             # FALLBACK INTELLIGENT
             if 'fold' in available_actions:
-                return {'action': 'fold', 'reason': 'Spin & Rush - Fallback sécurisé'}
+                return {'action': 'fold', 'reason': 'Stratégie Agressive - Fallback sécurisé'}
             elif 'check' in available_actions:
-                return {'action': 'check', 'reason': 'Spin & Rush - Fallback check'}
+                return {'action': 'check', 'reason': 'Stratégie Agressive - Fallback check'}
             else:
-                return {'action': 'fold', 'reason': 'Spin & Rush - Fallback final'}
+                return {'action': 'fold', 'reason': 'Stratégie Agressive - Fallback final'}
 
         except Exception as e:
-            self.logger.error(f"Erreur décision Spin & Rush: {e}")
+            self.logger.error(f"Erreur décision Stratégie Agressive: {e}")
             # Fallback: fold si possible, sinon check
             available_actions = [btn['name'].lower() for btn in available_buttons]
             if 'fold' in available_actions:

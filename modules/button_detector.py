@@ -419,7 +419,7 @@ class ButtonDetector:
             confidence_threshold = 0.8
             
             if max_val >= confidence_threshold:
-                self.logger.info(f"🎉 COURONNE DE VICTOIRE DÉTECTÉE! (confiance: {max_val:.2f})")
+                self.logger.info(f"COURONNE DE VICTOIRE DÉTECTÉE! (confiance: {max_val:.2f})")
                 return True
             else:
                 return False
