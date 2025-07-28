@@ -6,12 +6,10 @@ Modules de l'agent IA Poker - Version unifiée
 from .screen_capture import ScreenCapture, ScreenRegion
 from .image_analysis import ImageAnalyzer
 from .game_state import GameState
-from .poker_engine import PokerEngine
 from .ai_decision import AIDecisionMaker
 from .automation import AutomationEngine
 from .button_detector import ButtonDetector, UIButton, ActionType
 from .strategy_engine import Strategy, GeneralStrategy
-from .spin_rush_strategy import SpinRushStrategy
 
 # Imports des constantes et énumérations
 from .constants import (
@@ -31,7 +29,6 @@ __all__ = [
     'ScreenRegion', 
     'ImageAnalyzer',
     'GameState',
-    'PokerEngine',
     'AIDecisionMaker',
     'AutomationEngine',
     'ButtonDetector',
@@ -41,7 +38,6 @@ __all__ = [
     # Stratégies
     'Strategy',
     'GeneralStrategy',
-    'SpinRushStrategy',
     
     # Énumérations
     'Position',

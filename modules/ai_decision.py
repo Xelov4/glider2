@@ -7,7 +7,6 @@ import numpy as np
 from typing import Dict, List, Tuple, Optional
 import logging
 from dataclasses import dataclass
-from .poker_engine import PokerEngine
 from .game_state import GameState, Action, Position
 
 @dataclass
@@ -81,7 +80,6 @@ class AIDecisionMaker:
     """
     
     def __init__(self):
-        self.poker_engine = PokerEngine()
         self.opponent_models = {}
         self.risk_tolerance = 0.8
         self.aggression_level = 0.7

@@ -71,6 +71,7 @@ from modules.strategy_engine import GeneralStrategy
 from modules.aggressive_strategy import AggressiveStrategy
 from modules.automation import AutomationEngine
 from modules.advanced_ai_engine import AdvancedAIEngine
+from modules.ai_decision import AIDecisionMaker
 from modules.constants import Position, Action, GamePhase, DEFAULT_CONFIG
 
 class PokerAgent:
@@ -147,6 +148,9 @@ class PokerAgent:
         self.aggressive_strategy = AggressiveStrategy()
         self.general_strategy = GeneralStrategy()
         self.current_strategy = None  # Stratégie actuelle pour décision instantanée
+        
+        # NOUVEAU: Module de décision IA
+        self.ai_decision = AIDecisionMaker()
         
         # NOUVEAU: État de jeu optimisé
         self.game_state_cache = {
