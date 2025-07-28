@@ -111,37 +111,21 @@ class ScreenCapture:
                 current_time - self.last_capture_time < self.cache_duration):
                 return self.capture_cache[region_name]
             
-            # NOUVEAU: Système hybride de capture maximale + post-traitement
-            try:
-                from .hybrid_capture_system import HybridCaptureSystem, CaptureConfig
-                
-                # Configuration optimisée pour les cartes
-                config = CaptureConfig(
-                    capture_method="max_quality",
-                    post_processing=True,
-                    upscale_factor=3.0,  # Upscaling agressif
-                    enhancement_strength=1.8,
-                    noise_reduction=True,
-                    sharpening=True,
-                    contrast_boost=True
-                )
-                
-                hybrid_capture = HybridCaptureSystem(config)
-                image = hybrid_capture.capture_with_max_quality(region_name)
-                
-                if image is not None:
-                    # Métriques de performance
-                    metrics = hybrid_capture.get_performance_metrics()
-                    self.logger.debug(f"Capture hybride {region_name}: amélioration +{metrics['avg_quality_improvement']:.1f}%")
-                    
-                    # Mettre en cache
-                    self.capture_cache[region_name] = image
-                    self.last_capture_time = current_time
-                    
-                    return image
-                    
-            except Exception as e:
-                self.logger.debug(f"Capture hybride non disponible: {e}")
+            # Capture standard optimisée
+            screenshot = pyautogui.screenshot(region=(region.x, region.y, region.width, region.height))
+            image = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+            
+            # Post-traitement simple pour améliorer la qualité
+            if region_name in ['hand_area', 'community_cards']:
+                # Upscaling pour les cartes
+                image = cv2.resize(image, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
+                # Amélioration du contraste
+                lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+                l, a, b = cv2.split(lab)
+                clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+                l = clahe.apply(l)
+                lab = cv2.merge([l, a, b])
+                image = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
             
             # FALLBACK: Capture standard si HQ échoue
             screenshot = pyautogui.screenshot(region=(region.x, region.y, region.width, region.height))

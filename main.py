@@ -67,10 +67,9 @@ from modules.screen_capture import ScreenCapture
 from modules.image_analysis import ImageAnalyzer
 from modules.button_detector import ButtonDetector
 from modules.game_state import GameState
-from modules.strategy_engine import GeneralStrategy
-from modules.aggressive_strategy import AggressiveStrategy
+
 from modules.automation import AutomationEngine
-from modules.advanced_ai_engine import AdvancedAIEngine
+
 from modules.ai_decision import AIDecisionMaker
 from modules.constants import Position, Action, GamePhase, DEFAULT_CONFIG
 
@@ -142,15 +141,12 @@ class PokerAgent:
         self.button_detector = ButtonDetector()
         self.game_state = GameState()
         self.automation = AutomationEngine()
-        self.advanced_ai = AdvancedAIEngine()
-        
-        # Stratégies avec cache
-        self.aggressive_strategy = AggressiveStrategy()
-        self.general_strategy = GeneralStrategy()
-        self.current_strategy = None  # Stratégie actuelle pour décision instantanée
         
         # NOUVEAU: Module de décision IA
         self.ai_decision = AIDecisionMaker()
+        
+        # Stratégie actuelle pour décision instantanée
+        self.current_strategy = None
         
         # NOUVEAU: État de jeu optimisé
         self.game_state_cache = {
@@ -766,10 +762,7 @@ class PokerAgent:
             self.logger.error(f"Erreur décision IA: {e}")
             return None
     
-    def _should_use_aggressive_strategy(self) -> bool:
-        """Détermine si on doit utiliser la stratégie agressive"""
-        # Toujours utiliser la stratégie agressive
-        return True
+
     
     def _execute_action(self, decision: Dict):
         """Exécute l'action décidée par l'IA avec délai humain"""
@@ -2425,8 +2418,8 @@ class PokerAgent:
                 self.logger.warning("Aucune carte valide détectée")
                 valid_cards = my_cards  # Utiliser les cartes même sans couleur
             
-            # NOUVEAU: Calcul avancé de force de main
-            hand_strength = self._calculate_advanced_hand_strength(valid_cards, community_cards)
+            # Calcul simplifié de force de main
+            hand_strength = self._calculate_hand_strength_simple(valid_cards, community_cards)
             
             # NOUVEAU: Calculs avancés avec IA
             spr = self._calculate_stack_to_pot_ratio(my_stack, pot_size) if pot_size > 0 else 10
@@ -2512,27 +2505,33 @@ class PokerAgent:
             self.logger.debug(f"Erreur génération clé: {e}")
             return str(time.time())
 
-    def _calculate_advanced_hand_strength(self, my_cards: List[str], community_cards: List[str]) -> float:
+    def _calculate_hand_strength_simple(self, my_cards: List[str], community_cards: List[str]) -> float:
         """
-        Calcul avancé de force de main avec IA
+        Calcule la force de main de manière simplifiée
         """
         try:
             if not my_cards:
                 return 0.0
             
-            # NOUVEAU: Utiliser l'IA avancée si disponible
-            if hasattr(self, 'advanced_ai') and self.advanced_ai:
-                try:
-                    return self.advanced_ai.calculate_hand_strength(my_cards, community_cards)
-                except Exception as e:
-                    self.logger.debug(f"IA avancée échouée, fallback: {e}")
+            # Logique simplifiée basée sur le nombre de cartes
+            total_cards = len(my_cards) + len(community_cards)
             
-            # Fallback vers le calcul rapide
-            return self._calculate_hand_strength_ultra_fast(my_cards, community_cards)
-            
+            if total_cards < 2:
+                return 0.0
+            elif total_cards == 2:  # Preflop
+                return 0.3  # Force moyenne par défaut
+            elif total_cards == 5:  # Flop
+                return 0.5  # Force moyenne
+            elif total_cards == 6:  # Turn
+                return 0.6  # Force légèrement supérieure
+            elif total_cards == 7:  # River
+                return 0.7  # Force finale
+            else:
+                return min(1.0, total_cards / 7.0)
+                
         except Exception as e:
-            self.logger.error(f"Erreur calcul force main: {e}")
-            return 0.0
+            self.logger.error(f"Erreur calcul force main simple: {e}")
+            return 0.5
 
     def _make_ai_decision(self, my_cards: List[str], community_cards: List[str], 
                          hand_strength: float, spr: float, pot_odds: float, equity: float,

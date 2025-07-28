@@ -9,7 +9,6 @@ from .game_state import GameState
 from .ai_decision import AIDecisionMaker
 from .automation import AutomationEngine
 from .button_detector import ButtonDetector, UIButton, ActionType
-from .strategy_engine import Strategy, GeneralStrategy
 
 # Imports des constantes et énumérations
 from .constants import (
@@ -34,10 +33,6 @@ __all__ = [
     'ButtonDetector',
     'UIButton',
     'ActionType',
-    
-    # Stratégies
-    'Strategy',
-    'GeneralStrategy',
     
     # Énumérations
     'Position',
