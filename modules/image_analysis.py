@@ -3,7 +3,7 @@
 ========================================================
 
 Ce module gère la reconnaissance visuelle des éléments de poker :
-- Détection des cartes (OCR + ML)
+- Détection des cartes (Template Matching + OCR)
 - Reconnaissance des jetons et montants
 - Extraction de texte avec Tesseract
 - Validation et filtrage des résultats
@@ -11,8 +11,8 @@ Ce module gère la reconnaissance visuelle des éléments de poker :
 FONCTIONNALITÉS
 ===============
 
+✅ Détection Template Matching des cartes
 ✅ Détection OCR des cartes
-✅ Détection ML des cartes
 ✅ OCR robuste pour les montants
 ✅ Validation automatique des résultats
 ✅ Gestion d'erreurs complète
@@ -25,7 +25,7 @@ MÉTHODES PRINCIPALES
 - detect_chips() : Reconnaissance des jetons
 - validate_card() : Validation des cartes détectées
 
-VERSION: 3.0.0 - AVEC ML
+VERSION: 4.0.0 - TEMPLATE MATCHING UNIQUEMENT
 DERNIÈRE MISE À JOUR: 2025-01-XX
 """
 
@@ -33,6 +33,7 @@ import cv2
 import numpy as np
 import pytesseract
 import logging
+import os
 from typing import List, Optional, Tuple, Dict
 from dataclasses import dataclass
 
@@ -97,35 +98,18 @@ class ImageAnalyzer:
 
     def detect_cards(self, image: np.ndarray, region_name: str = "hand_area") -> List[Card]:
         """
-        Détecte les cartes avec système hybride optimisé
+        Détecte les cartes avec système template matching optimisé
         """
         try:
             self.logger.debug(f"🔧 Détection cartes {region_name} - Image: {image.shape}")
             
-            # SYSTÈME HYBRIDE: Workflow optimisé avec images haute qualité
+            # SYSTÈME TEMPLATE MATCHING: Workflow optimisé avec images haute qualité
             
-            # 1. MACHINE LEARNING (priorité absolue)
-            try:
-                from .card_ml_detector import CardMLDetector
-                ml_detector = CardMLDetector()
-                if ml_detector.is_trained:
-                    ml_cards = ml_detector.detect_cards_ml(image)
-                    if ml_cards:
-                        # Convertir les CardFeature en Card
-                        converted_cards = []
-                        for ml_card in ml_cards:
-                            card = Card(
-                                rank=ml_card.rank,
-                                suit=ml_card.suit,
-                                confidence=ml_card.confidence,
-                                position=(0, 0)
-                            )
-                            converted_cards.append(card)
-                        
-                        self.logger.debug(f"✅ ML détecté {len(converted_cards)} cartes: {[f'{c.rank}{c.suit}' for c in converted_cards]}")
-                        return converted_cards
-            except Exception as e:
-                self.logger.debug(f"ML non disponible: {e}")
+            # 1. Template Matching (priorité absolue)
+            template_cards = self._detect_cards_template_matching(image)
+            if template_cards:
+                self.logger.debug(f"✅ Template détecté {len(template_cards)} cartes: {[f'{c.rank}{c.suit}' for c in template_cards]}")
+                return template_cards
             
             # 2. OCR optimisé pour images haute qualité
             ocr_cards = self._detect_cards_ocr_optimized(image)
@@ -157,6 +141,109 @@ class ImageAnalyzer:
         except Exception as e:
             self.logger.error(f"Erreur détection cartes: {e}")
             return []
+
+    def _detect_cards_template_matching(self, image: np.ndarray) -> List[Card]:
+        """
+        Détecte les cartes avec template matching complet (52 cartes)
+        """
+        try:
+            cards = []
+            
+            # Conversion en niveaux de gris
+            if len(image.shape) == 3:
+                gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            else:
+                gray = image.copy()
+            
+            # Charger les templates avec noms ASCII
+            fixed_dir = "templates/cards/fixed"
+            if not os.path.exists(fixed_dir):
+                self.logger.debug("Dossier templates fixés non trouvé")
+                return []
+            
+            # Mapping des couleurs
+            suit_mapping = {
+                'spades': '♠',
+                'hearts': '♥', 
+                'diamonds': '♦',
+                'clubs': '♣'
+            }
+            
+            # Toutes les cartes disponibles
+            all_cards = [
+                # Piques
+                ('A', 'spades'), ('2', 'spades'), ('3', 'spades'), ('4', 'spades'), ('5', 'spades'),
+                ('6', 'spades'), ('7', 'spades'), ('8', 'spades'), ('9', 'spades'), ('T', 'spades'),
+                ('J', 'spades'), ('Q', 'spades'), ('K', 'spades'),
+                # Cœurs
+                ('A', 'hearts'), ('2', 'hearts'), ('3', 'hearts'), ('4', 'hearts'), ('5', 'hearts'),
+                ('6', 'hearts'), ('7', 'hearts'), ('8', 'hearts'), ('9', 'hearts'), ('T', 'hearts'),
+                ('J', 'hearts'), ('Q', 'hearts'), ('K', 'hearts'),
+                # Carreaux
+                ('A', 'diamonds'), ('2', 'diamonds'), ('3', 'diamonds'), ('4', 'diamonds'), ('5', 'diamonds'),
+                ('6', 'diamonds'), ('7', 'diamonds'), ('8', 'diamonds'), ('9', 'diamonds'), ('T', 'diamonds'),
+                ('J', 'diamonds'), ('Q', 'diamonds'), ('K', 'diamonds'),
+                # Trèfles
+                ('A', 'clubs'), ('2', 'clubs'), ('3', 'clubs'), ('4', 'clubs'), ('5', 'clubs'),
+                ('6', 'clubs'), ('7', 'clubs'), ('8', 'clubs'), ('9', 'clubs'), ('T', 'clubs'),
+                ('J', 'clubs'), ('Q', 'clubs'), ('K', 'clubs')
+            ]
+            
+            # Template matching pour chaque carte
+            for rank, suit_ascii in all_cards:
+                suit_symbol = suit_mapping[suit_ascii]
+                
+                # Chemin vers le template
+                template_path = os.path.join(fixed_dir, suit_ascii, f"card_{rank}_{suit_ascii}.png")
+                
+                if os.path.exists(template_path):
+                    template = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
+                    if template is not None:
+                        # Template matching avec différentes échelles
+                        scale_factors = [0.5, 0.7, 1.0, 1.3, 1.6, 2.0]
+                        
+                        for scale in scale_factors:
+                            h, w = template.shape
+                            new_h, new_w = int(h * scale), int(w * scale)
+                            if new_h < 10 or new_w < 10:
+                                continue
+                            
+                            resized_template = cv2.resize(template, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
+                            
+                            # Template matching
+                            result = cv2.matchTemplate(gray, resized_template, cv2.TM_CCOEFF_NORMED)
+                            locations = np.where(result >= 0.6)
+                            
+                            for pt in zip(*locations[::-1]):
+                                # Vérifier si c'est un nouveau match (éviter les doublons)
+                                is_new_match = True
+                                for existing_card in cards:
+                                    if (abs(existing_card.position[0] - pt[0]) < 50 and 
+                                        abs(existing_card.position[1] - pt[1]) < 50):
+                                        is_new_match = False
+                                        break
+                                
+                                if is_new_match:
+                                    card = Card(
+                                        rank=rank,
+                                        suit=suit_symbol,
+                                        confidence=result[pt[1], pt[0]],
+                                        position=pt
+                                    )
+                                    cards.append(card)
+                                    self.logger.debug(f"Template match: {rank}{suit_symbol} (conf: {result[pt[1], pt[0]]:.3f})")
+            
+            # Dédupliquer les cartes
+            cards = self._deduplicate_cards(cards)
+            
+            self.logger.debug(f"Template matching détecté {len(cards)} cartes")
+            return cards
+            
+        except Exception as e:
+            self.logger.error(f"Erreur template matching: {e}")
+            return []
+
+
 
     def _detect_cards_ultra_fast(self, image: np.ndarray) -> List[Card]:
         """

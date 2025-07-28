@@ -11,8 +11,6 @@ pygetwindow==0.0.9
 pyautogui==0.9.54
 
 # Intelligence artificielle
-tensorflow==2.13.0
-scikit-learn==1.3.0
 pandas==2.0.3
 
 # Automatisation et contrôle

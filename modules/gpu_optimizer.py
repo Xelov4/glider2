@@ -325,99 +325,15 @@ class LearningOptimizer:
             self.logger.error(f"Erreur calcul score: {e}")
             return 0.0
     
-    def adapt_model(self, ml_detector):
-        """
-        Adapte le modèle ML basé sur les données d'apprentissage
-        """
+    def get_template_matching_metrics(self) -> dict:
+        """Retourne les métriques de template matching"""
         try:
-            if len(self.learning_data) < 10:
-                self.logger.debug("Pas assez de données pour l'adaptation")
-                return
-            
-            # Calculer la performance moyenne
-            recent_performance = [s['performance_score'] for s in self.learning_data[-50:]]
-            avg_performance = np.mean(recent_performance)
-            
-            self.performance_history.append(avg_performance)
-            
-            # Adapter si nécessaire
-            if avg_performance < self.adaptation_threshold:
-                self.logger.info(f"Performance faible ({avg_performance:.3f}), adaptation du modèle")
-                self._retrain_model(ml_detector)
-            
-        except Exception as e:
-            self.logger.error(f"Erreur adaptation modèle: {e}")
-    
-    def _retrain_model(self, ml_detector):
-        """
-        Réentraîne le modèle avec les nouvelles données
-        """
-        try:
-            # Extraire les features des échantillons récents
-            new_features = []
-            new_labels = []
-            
-            for sample in self.learning_data[-100:]:  # 100 derniers échantillons
-                if sample['detected_cards']:
-                    # Utiliser les cartes détectées comme nouvelles données
-                    for card in sample['detected_cards']:
-                        # Créer des features synthétiques basées sur la carte
-                        features = self._create_features_from_card(card)
-                        new_features.append(features)
-                        new_labels.append(f"{card.rank}{card.suit}")
-            
-            if new_features and new_labels:
-                # Ajouter aux données d'entraînement existantes
-                # (Cette partie nécessiterait une modification du CardMLDetector)
-                self.logger.info(f"Modèle adapté avec {len(new_features)} nouvelles features")
-            
-        except Exception as e:
-            self.logger.error(f"Erreur réentraînement: {e}")
-    
-    def _create_features_from_card(self, card) -> np.ndarray:
-        """
-        Crée des features basées sur une carte détectée
-        """
-        try:
-            # Features synthétiques basées sur le rang et la couleur
-            features = np.zeros(64, dtype=np.float32)
-            
-            # Encoder le rang
-            rank_idx = '23456789TJQKA'.find(card.rank)
-            if rank_idx >= 0:
-                features[rank_idx] = 1.0
-            
-            # Encoder la couleur
-            suit_idx = '♠♥♦♣'.find(card.suit)
-            if suit_idx >= 0:
-                features[13 + suit_idx] = 1.0
-            
-            # Ajouter la confiance
-            features[17] = card.confidence
-            
-            return features
-            
-        except Exception as e:
-            self.logger.error(f"Erreur création features: {e}")
-            return np.zeros(64, dtype=np.float32)
-    
-    def get_learning_metrics(self) -> dict:
-        """Retourne les métriques d'apprentissage"""
-        try:
-            if self.performance_history:
-                recent_performance = np.mean(self.performance_history[-10:])
-                performance_trend = np.mean(self.performance_history[-5:]) - np.mean(self.performance_history[-10:-5])
-            else:
-                recent_performance = 0.0
-                performance_trend = 0.0
-            
             return {
                 'total_samples': len(self.learning_data),
-                'recent_performance': recent_performance,
-                'performance_trend': performance_trend,
-                'adaptation_threshold': self.adaptation_threshold
+                'template_matching_enabled': True,
+                'optimization_active': True
             }
             
         except Exception as e:
-            self.logger.error(f"Erreur métriques apprentissage: {e}")
+            self.logger.error(f"Erreur métriques template matching: {e}")
             return {'total_samples': 0} 
