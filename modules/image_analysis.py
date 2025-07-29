@@ -1,41 +1,22 @@
 """
-🔍 Module d'Analyse d'Images - Détection de Cartes et OCR
-========================================================
+Module d'analyse d'images pour l'agent IA Poker
 
-Ce module gère la reconnaissance visuelle des éléments de poker :
-- Détection des cartes (Template Matching + OCR)
-- Reconnaissance des jetons et montants
-- Extraction de texte avec Tesseract
-- Validation et filtrage des résultats
-
-FONCTIONNALITÉS
-===============
-
-✅ Détection Template Matching des cartes
-✅ Détection OCR des cartes
-✅ OCR robuste pour les montants
-✅ Validation automatique des résultats
-✅ Gestion d'erreurs complète
-
-MÉTHODES PRINCIPALES
-====================
-
-- detect_cards() : Détection principale des cartes
-- extract_text() : OCR avec Tesseract
-- detect_chips() : Reconnaissance des jetons
-- validate_card() : Validation des cartes détectées
-
-VERSION: 4.0.0 - TEMPLATE MATCHING UNIQUEMENT
-DERNIÈRE MISE À JOUR: 2025-01-XX
+Fonctionnalités:
+- Detection Template Matching des cartes
+- Detection OCR des cartes
+- OCR robuste pour les montants
+- Validation automatique des résultats
+- Gestion d'erreurs complète
 """
 
 import cv2
 import numpy as np
 import pytesseract
-import logging
 import os
+import re
 from typing import List, Optional, Tuple, Dict
 from dataclasses import dataclass
+import logging
 
 @dataclass
 class Card:
@@ -98,48 +79,75 @@ class ImageAnalyzer:
 
     def detect_cards(self, image: np.ndarray, region_name: str = "hand_area") -> List[Card]:
         """
-        Détecte les cartes avec système template matching optimisé
+        Détecte les cartes dans une image avec le nouveau workflow
         """
         try:
-            self.logger.debug(f"🔧 Détection cartes {region_name} - Image: {image.shape}")
+            self.logger.debug(f"Detection cartes {region_name} - Image: {image.shape}")
             
-            # SYSTÈME TEMPLATE MATCHING: Workflow optimisé avec images haute qualité
+            # NOUVEAU WORKFLOW: Template Matching + Validation, puis OCR + Color Detection
             
-            # 1. Template Matching (priorité absolue)
+            # 1. TEMPLATE MATCHING + VALIDATION (priorité absolue)
             template_cards = self._detect_cards_template_matching(image)
             if template_cards:
-                self.logger.debug(f"✅ Template détecté {len(template_cards)} cartes: {[f'{c.rank}{c.suit}' for c in template_cards]}")
-                return template_cards
+                # Validation des cartes détectées par template matching
+                validated_template_cards = []
+                for card in template_cards:
+                    if self._validate_card(card):
+                        validated_template_cards.append(card)
+                    else:
+                        self.logger.debug(f"Carte template invalide: {card.rank}{card.suit} (conf: {card.confidence:.3f})")
+                
+                if validated_template_cards:
+                    self.logger.debug(f"Template + Validation: {len(validated_template_cards)} cartes: {[f'{c.rank}{c.suit}' for c in validated_template_cards]}")
+                    return validated_template_cards
+                else:
+                    self.logger.debug("Template matching echoue - passage a OCR + Color Detection")
             
-            # 2. OCR optimisé pour images haute qualité
+            # 2. OCR + COLOR DETECTION (fallback systématique)
+            self.logger.debug("Lancement OCR + Color Detection...")
+            
+            # 2a. Détection OCR
             ocr_cards = self._detect_cards_ocr_optimized(image)
             if ocr_cards:
-                self.logger.debug(f"✅ OCR détecté {len(ocr_cards)} cartes: {[f'{c.rank}{c.suit}' for c in ocr_cards]}")
-                return ocr_cards
+                self.logger.debug(f"OCR detecte {len(ocr_cards)} cartes: {[f'{c.rank}{c.suit}' for c in ocr_cards]}")
+                
+                # 2b. Validation OCR + Amélioration par couleur
+                validated_ocr_cards = []
+                for card in ocr_cards:
+                    if self._validate_card(card):
+                        # Améliorer la couleur si nécessaire
+                        if card.suit == '?':
+                            improved_suit = self._determine_suit_by_position_and_color(image, card.rank, self._analyze_colors_ultra_fast(image))
+                            if improved_suit != '?':
+                                card.suit = improved_suit
+                                self.logger.debug(f"Couleur amelioree pour {card.rank}: {improved_suit}")
+                        
+                        validated_ocr_cards.append(card)
+                    else:
+                        self.logger.debug(f"Carte OCR invalide: {card.rank}{card.suit}")
+                
+                if validated_ocr_cards:
+                    self.logger.debug(f"OCR + Color + Validation: {len(validated_ocr_cards)} cartes: {[f'{c.rank}{c.suit}' for c in validated_ocr_cards]}")
+                    return validated_ocr_cards
             
-            # 3. Détection ultra-rapide
-            fast_cards = self._detect_cards_ultra_fast(image)
-            if fast_cards:
-                self.logger.debug(f"✅ Fast détecté {len(fast_cards)} cartes: {[f'{c.rank}{c.suit}' for c in fast_cards]}")
-                return fast_cards
-            
-            # 4. Contours (fallback)
-            contour_cards = self._detect_cards_by_contours(image)
-            if contour_cards:
-                self.logger.debug(f"✅ Contours détecté {len(contour_cards)} cartes: {[f'{c.rank}{c.suit}' for c in contour_cards]}")
-                return contour_cards
-            
-            # 5. Couleurs (dernier recours)
+            # 3. DÉTECTION PAR COULEURS SEULE (dernier recours)
+            self.logger.debug("Lancement detection par couleurs seule...")
             color_cards = self._detect_cards_by_color(image)
             if color_cards:
-                self.logger.debug(f"✅ Couleurs détecté {len(color_cards)} cartes: {[f'{c.rank}{c.suit}' for c in color_cards]}")
-                return color_cards
+                validated_color_cards = []
+                for card in color_cards:
+                    if self._validate_card(card):
+                        validated_color_cards.append(card)
+                
+                if validated_color_cards:
+                    self.logger.debug(f"Couleurs + Validation: {len(validated_color_cards)} cartes: {[f'{c.rank}{c.suit}' for c in validated_color_cards]}")
+                    return validated_color_cards
             
-            self.logger.debug(f"❌ Aucune carte détectée dans {region_name}")
+            self.logger.debug(f"Aucune carte valide detectee dans {region_name}")
             return []
             
         except Exception as e:
-            self.logger.error(f"Erreur détection cartes: {e}")
+            self.logger.error(f"Erreur detection cartes: {e}")
             return []
 
     def _detect_cards_template_matching(self, image: np.ndarray) -> List[Card]:
@@ -210,11 +218,13 @@ class ImageAnalyzer:
                             
                             resized_template = cv2.resize(template, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
                             
-                            # Template matching
+                            # Template matching avec seuil plus strict
                             result = cv2.matchTemplate(gray, resized_template, cv2.TM_CCOEFF_NORMED)
-                            locations = np.where(result >= 0.6)
+                            locations = np.where(result >= 0.7)  # Seuil augmenté pour plus de précision
                             
                             for pt in zip(*locations[::-1]):
+                                confidence = result[pt[1], pt[0]]
+                                
                                 # Vérifier si c'est un nouveau match (éviter les doublons)
                                 is_new_match = True
                                 for existing_card in cards:
@@ -227,11 +237,16 @@ class ImageAnalyzer:
                                     card = Card(
                                         rank=rank,
                                         suit=suit_symbol,
-                                        confidence=result[pt[1], pt[0]],
+                                        confidence=confidence,
                                         position=pt
                                     )
-                                    cards.append(card)
-                                    self.logger.debug(f"Template match: {rank}{suit_symbol} (conf: {result[pt[1], pt[0]]:.3f})")
+                                    
+                                    # Validation immédiate de la carte
+                                    if self._validate_card(card):
+                                        cards.append(card)
+                                        self.logger.debug(f"Template match valide: {rank}{suit_symbol} (conf: {confidence:.3f})")
+                                    else:
+                                        self.logger.debug(f"Template match rejete: {rank}{suit_symbol} (conf: {confidence:.3f})")
             
             # Dédupliquer les cartes
             cards = self._deduplicate_cards(cards)
@@ -250,14 +265,14 @@ class ImageAnalyzer:
         Détection ultra-rapide des cartes (méthode la plus efficace)
         """
         try:
-            cards = []
-            
+        cards = []
+        
             # NOUVEAU: OCR ultra-rapide avec configuration optimisée
             config = '--oem 3 --psm 6 -c tessedit_char_whitelist=23456789TJQKA'
             
             # Prétraitement minimal
             if len(image.shape) == 3:
-                gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             else:
                 gray = image.copy()
             
@@ -296,8 +311,8 @@ class ImageAnalyzer:
                     cards.append(card)
                     self.logger.debug(f"Carte détectée ultra-rapide: {rank}{suit}")
             
-            return cards
-            
+        return cards
+    
         except Exception as e:
             self.logger.error(f"Erreur détection ultra-rapide: {e}")
             return []
@@ -379,16 +394,20 @@ class ImageAnalyzer:
                 else:
                     # Chiffres - alterner
                     return '♣'
-            
+                
         except Exception as e:
             self.logger.debug(f"Erreur détermination couleur: {e}")
             return '?'  # Couleur inconnue
 
     def _detect_cards_ocr_optimized(self, image: np.ndarray) -> List[Card]:
         """
-        OCR optimisé pour les cartes avec plusieurs configurations
+        OCR optimisé pour les cartes avec intégration couleur
         """
         cards = []
+        
+        # NOUVEAU: Analyse des couleurs en premier
+        color_analysis = self._analyze_colors_ultra_fast(image)
+        self.logger.debug(f"Analyse couleurs: Rouge={color_analysis['red_ratio']:.3f}, Noir={color_analysis['black_ratio']:.3f}")
         
         # Configuration 1: OCR standard
         config1 = '--oem 3 --psm 6 -c tessedit_char_whitelist=23456789TJQKA♠♥♦♣'
@@ -402,9 +421,30 @@ class ImageAnalyzer:
         config3 = '--oem 3 --psm 10 -c tessedit_char_whitelist=23456789TJQKA♠♥♦♣'
         cards.extend(self._try_ocr_config(image, config3))
         
+        # NOUVEAU: Amélioration des couleurs pour les cartes détectées
+        improved_cards = []
+        for card in cards:
+            # Si la couleur est inconnue ou douteuse, essayer de l'améliorer
+            if card.suit == '?' or card.suit not in ['♠', '♥', '♦', '♣']:
+                improved_suit = self._determine_suit_by_position_and_color(image, card.rank, color_analysis)
+                if improved_suit != '?':
+                    card.suit = improved_suit
+                    self.logger.debug(f"Couleur amelioree pour {card.rank}: {improved_suit}")
+            
+            improved_cards.append(card)
+        
         # Dédupliquer et valider
-        unique_cards = self._deduplicate_cards(cards)
-        return [card for card in unique_cards if self._validate_card(card)]
+        unique_cards = self._deduplicate_cards(improved_cards)
+        validated_cards = []
+        
+        for card in unique_cards:
+            if self._validate_card(card):
+                validated_cards.append(card)
+            else:
+                self.logger.debug(f"Carte OCR rejetee: {card.rank}{card.suit}")
+        
+        self.logger.debug(f"OCR + Color: {len(validated_cards)} cartes validees")
+        return validated_cards
 
     def _try_ocr_config(self, image: np.ndarray, config: str) -> List[Card]:
         """
@@ -435,7 +475,7 @@ class ImageAnalyzer:
         try:
             # Conversion en niveaux de gris
             if len(image.shape) == 3:
-                gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             else:
                 gray = image.copy()
             
@@ -479,7 +519,7 @@ class ImageAnalyzer:
             cleaned = cv2.morphologyEx(combined, cv2.MORPH_CLOSE, kernel)
             
             return cleaned
-            
+                        
         except Exception as e:
             self.logger.error(f"Erreur prétraitement OCR: {e}")
             return image
@@ -672,10 +712,15 @@ class ImageAnalyzer:
 
     def _detect_cards_by_color(self, image: np.ndarray) -> List[Card]:
         """
-        Détecte les cartes par analyse de couleur (rouge/noir)
+        Détecte les cartes par analyse de couleur (rouge/noir) avec validation
         """
         try:
+            self.logger.debug("Lancement detection par couleurs...")
             cards = []
+            
+            # NOUVEAU: Analyse des couleurs ultra-rapide
+            color_analysis = self._analyze_colors_ultra_fast(image)
+            self.logger.debug(f"Analyse couleurs: Rouge={color_analysis['red_ratio']:.3f}, Noir={color_analysis['black_ratio']:.3f}")
             
             # Conversion en HSV pour meilleure détection des couleurs
             hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
@@ -699,12 +744,54 @@ class ImageAnalyzer:
             red_regions = self._find_color_regions(mask_red, 'red')
             black_regions = self._find_color_regions(mask_black, 'black')
             
-            # Combiner avec OCR pour détecter les rangs
-            ocr_cards = self._detect_cards_ocr_optimized(image)
+            self.logger.debug(f"Regions detectees: Rouge={len(red_regions)}, Noir={len(black_regions)}")
             
-            # Associer couleurs et rangs
-            cards = self._associate_colors_with_ranks(ocr_cards, red_regions, black_regions, image)
+            # NOUVEAU: Détection OCR simple pour les rangs
+            ocr_text = pytesseract.image_to_string(
+                self._preprocess_for_ocr(image),
+                config='--oem 3 --psm 6 -c tessedit_char_whitelist=23456789TJQKA'
+            )
             
+            # Extraire les rangs détectés
+            detected_ranks = []
+            for char in ocr_text.strip().upper():
+                if char in '23456789TJQKA':
+                    detected_ranks.append(char)
+            
+            self.logger.debug(f"Rangs detectes: {detected_ranks}")
+            
+            # NOUVEAU: Créer des cartes basées sur les couleurs et rangs
+            for rank in detected_ranks:
+                # Déterminer la couleur basée sur l'analyse
+                if color_analysis['red_ratio'] > 0.05:  # Rouge détecté
+                    if color_analysis['red_ratio'] > 0.1:
+                        suit = '♥'
+            else:
+                        suit = '♦'
+                elif color_analysis['black_ratio'] > 0.05:  # Noir détecté
+                    if color_analysis['black_ratio'] > 0.1:
+                        suit = '♠'
+                    else:
+                        suit = '♣'
+                else:
+                    # Couleur indéterminée - utiliser heuristique
+                    suit = self._determine_suit_by_position_and_color(image, rank, color_analysis)
+                
+                card = Card(
+                    rank=rank,
+                    suit=suit,
+                    confidence=0.6,  # Confiance plus faible pour détection par couleur
+                    position=(0, 0)
+                )
+                
+                # Validation de la carte
+                if self._validate_card(card):
+                    cards.append(card)
+                    self.logger.debug(f"Carte couleur validee: {rank}{suit}")
+                else:
+                    self.logger.debug(f"Carte couleur rejetee: {rank}{suit}")
+            
+            self.logger.debug(f"Detection couleurs: {len(cards)} cartes validees")
             return cards
             
         except Exception as e:
@@ -757,11 +844,11 @@ class ImageAnalyzer:
                     cards.append(card)
             
             return cards
-            
+                
         except Exception as e:
             self.logger.error(f"Erreur association couleurs: {e}")
             return ocr_cards
-
+            
     def _find_best_color_match(self, card: Card, red_regions: List[Dict], 
                               black_regions: List[Dict], image: np.ndarray) -> Optional[str]:
         """
@@ -796,11 +883,11 @@ class ImageAnalyzer:
                 return self._determine_black_suit(card_region)
             
             return None
-            
+                
         except Exception as e:
             self.logger.debug(f"Erreur correspondance couleur: {e}")
             return None
-
+    
     def _get_card_region(self, card: Card, image: np.ndarray) -> Optional[np.ndarray]:
         """
         Extrait la région d'une carte depuis l'image
@@ -822,7 +909,7 @@ class ImageAnalyzer:
         except Exception as e:
             self.logger.debug(f"Erreur extraction région carte: {e}")
             return None
-
+    
     def _determine_red_suit(self, card_region: np.ndarray) -> str:
         """
         Détermine si c'est ♥ ou ♦ basé sur la forme
@@ -857,7 +944,7 @@ class ImageAnalyzer:
         except Exception as e:
             self.logger.debug(f"Erreur détermination rouge: {e}")
             return '♥'
-
+    
     def _determine_black_suit(self, card_region: np.ndarray) -> str:
         """
         Détermine si c'est ♠ ou ♣ basé sur la forme
@@ -888,7 +975,7 @@ class ImageAnalyzer:
             
             # Par défaut, retourner ♠
             return '♠'
-            
+                
         except Exception as e:
             self.logger.debug(f"Erreur détermination noir: {e}")
             return '♠'
@@ -945,7 +1032,7 @@ class ImageAnalyzer:
         except Exception as e:
             self.logger.debug(f"Erreur validation carte: {e}")
             return False
-
+    
     def extract_text(self, image: np.ndarray, region_name: str = "unknown") -> str:
         """
         Extrait du texte d'une image avec OCR
@@ -969,7 +1056,7 @@ class ImageAnalyzer:
         except Exception as e:
             self.logger.error(f"Erreur extraction texte: {e}")
             return ""
-
+    
     def detect_chips(self, image: np.ndarray) -> List[int]:
         """
         Détecte les jetons dans une image
@@ -1051,7 +1138,7 @@ class ImageAnalyzer:
                 debug_info['errors'].append(f"Analyse couleur: {e}")
             
             return debug_info
-            
+                
         except Exception as e:
             debug_info['errors'].append(f"Erreur générale: {e}")
             return debug_info 

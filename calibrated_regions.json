@@ -101,6 +101,12 @@
     "width": 100,
     "height": 30
   },
+  "play_020_button": {
+    "x": 650,
+    "y": 950,
+    "width": 120,
+    "height": 40
+  },
   "resume_button": {
     "x": 1005,
     "y": 977,

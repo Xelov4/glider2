@@ -1,55 +1,37 @@
 """
-🤖 Agent IA Poker - Betclic Poker
-================================
+AGENT IA POKER - VERSION ULTRA-OPTIMISÉE
+========================================
 
-POINT D'ENTRÉE PRINCIPAL
-========================
+Agent autonome pour jouer au poker sur Betclic Poker avec :
+- Detection continue pendant le chargement
+- Reactivite ultra-rapide (< 100ms)
+- Strategie Spin & Rush integree
+- Validation robuste des donnees
+- Logging detaille pour debugging
+- Gestion d'erreurs complete
 
-Ce fichier contient la classe PokerAgent qui orchestre toutes les fonctionnalités :
-- Capture d'écran en temps réel
-- Détection des cartes et boutons
-- Analyse stratégique du jeu
-- Prise de décision intelligente
+FONCTIONNALITÉS PRINCIPALES
+===========================
+
+- Détection automatique des cartes (Template Matching + OCR)
+- Reconnaissance des boutons d'action
+- Analyse des montants (pot, stack, mises)
+- Décision IA basée sur la force de main
 - Exécution automatique des actions
+- Monitoring en temps réel
 
-ARCHITECTURE
-============
+MÉTHODES CLÉS
+=============
 
-1. INITIALISATION
-   - Chargement de la configuration
-   - Initialisation des modules (OCR, capture, etc.)
-   - Calibration des régions d'écran
+- start() : Démarrage de l'agent
+- _main_loop() : Boucle principale optimisée
+- _make_instant_decision() : Décision ultra-rapide
+- _execute_action() : Exécution des actions
+- _capture_all_regions_complete() : Capture complète
+- _detect_all_elements_complete() : Détection complète
 
-2. BOUCLE PRINCIPALE
-   - Capture ultra-rapide (10ms)
-   - Détection des éléments de jeu
-   - Analyse stratégique
-   - Prise de décision
-   - Exécution d'action
-
-3. STRATÉGIES
-   - Spin & Rush (ultra-agressive)
-   - Générale (équilibrée)
-   - Adaptative (selon le contexte)
-
-4. GESTION D'ÉTAT
-   - Suivi des mains
-   - Statistiques de session
-   - Logging détaillé
-
-FONCTIONNALITÉS CLÉS
-====================
-
-✅ Détection continue pendant le chargement
-✅ Réactivité ultra-rapide (< 100ms)
-✅ Stratégie Spin & Rush intégrée
-✅ Validation robuste des données
-✅ Logging détaillé pour debugging
-✅ Gestion d'erreurs complète
-
-VERSION: 2.0.0
-DERNIÈRE MISE À JOUR: 2025-07-27
-AUTEUR: Assistant IA
+VERSION: 5.0.0 - DÉTECTION 1HZ + WORKFLOW OPTIMISÉ
+DERNIÈRE MISE À JOUR: 2025-01-XX
 """
 
 import sys
@@ -256,7 +238,28 @@ class PokerAgent:
             position = game_state.get('position', '?')
             timer = game_state.get('timer', 0)
             
-            state_summary = f"GAME - Cartes: {my_cards}, Communes: {community_cards}, "
+            # Formater les cartes avec encodage sécurisé
+            def format_cards_safe(cards):
+                if not cards:
+                    return '[]'
+                try:
+                    # Convertir les symboles Unicode en ASCII
+                    formatted = []
+                    for card in cards:
+                        if isinstance(card, str):
+                            # Remplacer les symboles Unicode par des lettres
+                            card_safe = card.replace('♠', 'S').replace('♥', 'H').replace('♦', 'D').replace('♣', 'C')
+                            formatted.append(card_safe)
+                        else:
+                            formatted.append(str(card))
+                    return str(formatted)
+                except:
+                    return str(cards)
+            
+            my_cards_str = format_cards_safe(my_cards)
+            community_cards_str = format_cards_safe(community_cards)
+            
+            state_summary = f"GAME - Cartes: {my_cards_str}, Communes: {community_cards_str}, "
             state_summary += f"Stack: {my_stack}, Pot: {pot_size}, Pos: {position}, Timer: {timer}"
             
             if action:
@@ -345,77 +348,75 @@ class PokerAgent:
         self.logger.info("Agent repris")
     
     def _main_loop(self):
-        """Boucle principale ultra-optimisée avec monitoring"""
-        self.logger.info("Demarrage de la boucle principale ultra-optimisee")
+        """Boucle principale avec détection 1 fois par seconde"""
+        self.logger.info("Demarrage de la boucle principale - Detection 1 fois par seconde")
         
         cycle_count = 0
+        last_detection_time = time.time()
         last_performance_log = time.time()
         last_state_check = time.time()
         
         try:
-            while self.running:
+        while self.running:
                 cycle_start = time.time()
                 cycle_count += 1
+                current_time = time.time()
                 
-                # NOUVEAU: Monitoring de performance moins fréquent
-                if time.time() - last_performance_log > 15:  # Log toutes les 15s
+                # NOUVEAU: Détection complète 1 fois par seconde
+                if current_time - last_detection_time >= 1.0:  # Exactement 1 seconde
+                    self.logger.debug(f"Cycle #{cycle_count}: Detection complete des elements")
+                    
+                    try:
+                        # 1. CAPTURE COMPLÈTE DE TOUTES LES RÉGIONS
+                        captured_regions = self._capture_all_regions_complete()
+                        if captured_regions:
+                            # 2. DÉTECTION COMPLÈTE AVEC NOUVEAU WORKFLOW
+                            self._detect_all_elements_complete(captured_regions)
+                            
+                            # 3. DÉTECTION D'ÉTAT DE JEU
+                            game_state = self._detect_game_state_fast(captured_regions)
+                            
+                            # 4. GESTION DES ÉTATS
+                            if game_state == 'no_game':
+                                self._handle_no_game_fast(captured_regions)
+                            elif game_state == 'hand_ended':
+                                self._handle_hand_ended_fast(captured_regions)
+                            elif game_state == 'our_turn':
+                                self._handle_our_turn_ultra_fast(captured_regions)
+                            elif game_state == 'game_active':
+                                self._handle_game_active_fast(captured_regions)
+                        
+                        last_detection_time = current_time
+                        
+                    except Exception as e:
+                        self.logger.error(f"Erreur detection complete: {e}")
+                        self.session_stats['errors_count'] += 1
+                
+                # Monitoring de performance moins fréquent
+                if current_time - last_performance_log > 15:  # Log toutes les 15s
                     self.log_performance_metrics()
-                    last_performance_log = time.time()
+                    last_performance_log = current_time
                 
-                # NOUVEAU: Vérification d'état moins fréquente
-                if time.time() - last_state_check > 5:  # Toutes les 5s
+                # Vérification d'état moins fréquente
+                if current_time - last_state_check > 5:  # Toutes les 5s
                     self._check_safety_conditions()
                     self._update_session_stats()
                     self._monitor_performance()
-                    last_state_check = time.time()
+                    last_state_check = current_time
                 
-                # NOUVEAU: Nettoyage mémoire périodique
+                # Nettoyage mémoire périodique
                 if cycle_count % self.performance_config['memory_cleanup_interval'] == 0:
                     self._cleanup_memory()
                 
-                try:
-                    # 1. CAPTURE ULTRA-RAPIDE
-                    captured_regions = self._capture_ultra_fast()
-                    if not captured_regions:
-                        time.sleep(0.001)  # 1ms si pas de capture
-                        continue
-                    
-                    # 2. DÉTECTION D'ÉTAT DE JEU (optimisée)
-                    game_state = self._detect_game_state_fast(captured_regions)
-                    
-                    # 3. GESTION DES ÉTATS (optimisée)
-                    if game_state == 'no_game':
-                        self._handle_no_game_fast(captured_regions)
-                    elif game_state == 'hand_ended':
-                        self._handle_hand_ended_fast(captured_regions)
-                    elif game_state == 'our_turn':
-                        self._handle_our_turn_ultra_fast(captured_regions)
-                    elif game_state == 'game_active':
-                        self._handle_game_active_fast(captured_regions)
-                    
-                    # NOUVEAU: Métriques de cycle optimisées
-                    cycle_time = time.time() - cycle_start
-                    self.performance_metrics['total_cycles'] = cycle_count
-                    
-                    # NOUVEAU: Contrôle de performance moins strict
-                    if cycle_time > 0.2:  # Plus de 200ms (au lieu de 100ms)
-                        self.logger.warning(f"Cycle lent: {cycle_time:.3f}s")
-                    
-                    # NOUVEAU: Intervalle adaptatif optimisé
-                    if cycle_time < 0.005:  # Moins de 5ms
-                        time.sleep(0.001)  # 1ms de pause
-                    elif cycle_time < 0.02:  # Moins de 20ms
-                        time.sleep(0.002)  # 2ms de pause
-                    
-                except Exception as e:
-                    self.logger.error(f"Erreur cycle principal: {e}")
-                    self.session_stats['errors_count'] += 1
-                    time.sleep(0.005)  # 5ms en cas d'erreur
+                # Pause pour maintenir l'intervalle de 1 seconde
+                cycle_time = current_time - cycle_start
+                if cycle_time < 0.1:  # Si le cycle est rapide, attendre
+                    time.sleep(0.1 - cycle_time)
                 
         except KeyboardInterrupt:
             self.logger.info("Arret demande par l'utilisateur")
-        except Exception as e:
-            self.logger.error(f"Erreur boucle principale: {e}")
+            except Exception as e:
+                self.logger.error(f"Erreur boucle principale: {e}")
         finally:
             self.logger.info("Boucle principale terminee")
 
@@ -909,7 +910,7 @@ class PokerAgent:
             
         except Exception as e:
             self.logger.error(f"Erreur mise à jour stats: {e}")
-
+    
     def _save_session_stats(self):
         """Sauvegarde des statistiques de session"""
         try:
@@ -970,17 +971,17 @@ class PokerAgent:
         try:
             self.logger.info("Tentative de lancement immediat d'une partie...")
             
-            # 1. Capturer l'écran pour détecter le bouton "New Hand"
+            # 1. Capturer l'écran pour détecter les boutons de lancement
             captured_regions = self.screen_capture.capture_all_regions()
             
-            # 2. Essayer de cliquer sur "New Hand" s'il est présent
-            if self._check_and_click_new_hand_button(captured_regions):
-                self.logger.info("✅ Partie lancée avec succès - Attente 15 secondes...")
+            # 2. Essayer de cliquer sur "New Hand" ou "Jouer 0,20€" s'ils sont présents
+            if self._check_and_click_new_hand_button(captured_regions) or self._check_and_click_play_020_button(captured_regions):
+                self.logger.info("Partie lancee avec succes - Attente 15 secondes...")
                 time.sleep(15)  # Attendre que la partie se lance
                 return True
             else:
                 # 3. Si pas de bouton détecté, essayer une position par défaut
-                self.logger.info("Aucun bouton 'New Hand' detecte - Tentative position par defaut...")
+                self.logger.info("Aucun bouton de lancement detecte - Tentative position par defaut...")
                 
                 # Position par défaut pour le bouton "New Hand"
                 region_info = self.screen_capture.get_region_info('new_hand_button')
@@ -1022,7 +1023,7 @@ class PokerAgent:
                     self.logger.info("Fin de l'attente - Passage en mode normal")
                     return True
                 else:
-                    self.logger.warning("⚠️ Impossible de lancer une partie - Aucune position trouvée")
+                    self.logger.warning("Impossible de lancer une partie - Aucune position trouvee")
                     return False
                     
         except Exception as e:
@@ -1780,6 +1781,64 @@ class PokerAgent:
         except Exception as e:
             self.logger.error(f"Erreur exécution action: {e}")
 
+    def _capture_all_regions_complete(self) -> Optional[Dict]:
+        """
+        Capture complète de toutes les régions importantes 1 fois par seconde
+        """
+        start_time = time.time()
+        
+        try:
+            # NOUVEAU: Toutes les régions importantes pour la détection complète
+            all_regions = [
+                # Cartes
+                'hand_area', 'community_cards',
+                # Boutons d'action
+                'fold_button', 'call_button', 'raise_button', 'check_button', 'all_in_button',
+                # Informations de jeu
+                'pot_area', 'my_stack_area', 'opponent1_stack_area', 'opponent2_stack_area',
+                'my_current_bet', 'opponent1_current_bet', 'opponent2_current_bet',
+                # Contrôles de mise
+                'bet_slider', 'bet_input',
+                # Boutons de navigation
+                'new_hand_button', 'resume_button',
+                # Informations de table
+                'blinds_area', 'blinds_timer',
+                # Positions
+                'my_dealer_button', 'opponent1_dealer_button', 'opponent2_dealer_button'
+            ]
+            
+            # Capture séquentielle de toutes les régions
+            captured_regions = {}
+            
+            for region_name in all_regions:
+                try:
+                    image = self.screen_capture.capture_region(region_name)
+                    if image is not None and image.size > 0:
+                        captured_regions[region_name] = image
+                except Exception as e:
+                    self.logger.debug(f"Erreur capture {region_name}: {e}")
+            
+            # Mettre à jour le cache
+            if captured_regions:
+                self.image_cache = captured_regions.copy()
+                self.last_capture_time = time.time()
+                
+                # Métriques de performance
+                capture_time = time.time() - start_time
+                self.performance_metrics['capture_times'].append(capture_time)
+                if len(self.performance_metrics['capture_times']) > 50:
+                    self.performance_metrics['capture_times'].pop(0)
+                
+                self.logger.debug(f"Capture complete: {len(captured_regions)} regions en {capture_time:.3f}s")
+                return captured_regions
+            
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Erreur capture complete: {e}")
+            self.session_stats['errors_count'] += 1
+            return None
+
     def _capture_ultra_fast(self) -> Optional[Dict]:
         """
         Capture ultra-rapide avec cache intelligent et parallélisation
@@ -1918,6 +1977,165 @@ class PokerAgent:
         except Exception as e:
             self.logger.error(f"Erreur détection changement main: {e}")
             return False
+
+    def _detect_all_elements_complete(self, captured_regions: Dict):
+        """
+        Détection complète de tous les éléments avec le nouveau workflow
+        """
+        start_time = time.time()
+        
+        try:
+            self.logger.debug("🔍 Detection complete de tous les elements...")
+            
+            # 1. DÉTECTION DES CARTES (Nouveau Workflow)
+            self._detect_cards_complete(captured_regions)
+            
+            # 2. DÉTECTION DES BOUTONS
+            self._detect_buttons_complete(captured_regions)
+            
+            # 3. DÉTECTION DES MONTANTS
+            self._detect_amounts_complete(captured_regions)
+            
+            # 4. DÉTECTION DES POSITIONS
+            self._detect_positions_complete(captured_regions)
+            
+            # 5. DÉTECTION DES TIMERS
+            self._detect_timers_complete(captured_regions)
+            
+            # Métriques de performance
+            detection_time = time.time() - start_time
+            self.performance_metrics['decision_times'].append(detection_time)
+            if len(self.performance_metrics['decision_times']) > 50:
+                self.performance_metrics['decision_times'].pop(0)
+            
+            self.logger.debug(f"✅ Detection complete terminee en {detection_time:.3f}s")
+            
+        except Exception as e:
+            self.logger.error(f"Erreur detection complete: {e}")
+            self.session_stats['errors_count'] += 1
+
+    def _detect_cards_complete(self, captured_regions: Dict):
+        """Détection complète des cartes avec nouveau workflow"""
+        try:
+            # Cartes du joueur
+            if 'hand_area' in captured_regions:
+                my_cards = self.image_analyzer.detect_cards(captured_regions['hand_area'], 'hand_area')
+                if my_cards:
+                    # Formater les cartes avec encodage sécurisé
+                    cards_str = []
+                    for c in my_cards:
+                        suit_safe = c.suit.replace('♠', 'S').replace('♥', 'H').replace('♦', 'D').replace('♣', 'C')
+                        cards_str.append(f'{c.rank}{suit_safe}')
+                    self.logger.info(f"Cartes joueur: {cards_str}")
+                else:
+                    self.logger.debug("Aucune carte joueur detectee")
+            
+            # Cartes communautaires
+            if 'community_cards' in captured_regions:
+                community_cards = self.image_analyzer.detect_cards(captured_regions['community_cards'], 'community_cards')
+                if community_cards:
+                    # Formater les cartes avec encodage sécurisé
+                    cards_str = []
+                    for c in community_cards:
+                        suit_safe = c.suit.replace('♠', 'S').replace('♥', 'H').replace('♦', 'D').replace('♣', 'C')
+                        cards_str.append(f'{c.rank}{suit_safe}')
+                    self.logger.info(f"Cartes communautaires: {cards_str}")
+                else:
+                    self.logger.debug("Aucune carte communautaire detectee")
+                    
+        except Exception as e:
+            self.logger.error(f"Erreur detection cartes: {e}")
+
+    def _detect_buttons_complete(self, captured_regions: Dict):
+        """Détection complète des boutons"""
+        try:
+            button_regions = ['fold_button', 'call_button', 'raise_button', 'check_button', 'all_in_button']
+            available_buttons = []
+            
+            for region_name in button_regions:
+                if region_name in captured_regions:
+                    if self._is_button_visible_fast(captured_regions[region_name]):
+                        available_buttons.append(region_name.replace('_button', ''))
+            
+            if available_buttons:
+                self.logger.info(f"🎯 Boutons disponibles: {available_buttons}")
+            else:
+                self.logger.debug("🎯 Aucun bouton d'action disponible")
+                
+        except Exception as e:
+            self.logger.error(f"Erreur detection boutons: {e}")
+
+    def _detect_amounts_complete(self, captured_regions: Dict):
+        """Détection complète des montants"""
+        try:
+            amounts = {}
+            
+            # Pot
+            if 'pot_area' in captured_regions:
+                pot_text = self.image_analyzer.extract_text(captured_regions['pot_area'])
+                pot_amount = self._parse_bet_amount(pot_text) if pot_text else 0
+                amounts['pot'] = pot_amount
+            
+            # Stack joueur
+            if 'my_stack_area' in captured_regions:
+                stack_text = self.image_analyzer.extract_text(captured_regions['my_stack_area'])
+                stack_amount = self._parse_stack_amount(stack_text) if stack_text else 500
+                amounts['my_stack'] = stack_amount
+            
+            # Mise actuelle
+            if 'my_current_bet' in captured_regions:
+                bet_text = self.image_analyzer.extract_text(captured_regions['my_current_bet'])
+                bet_amount = self._parse_bet_amount(bet_text) if bet_text else 0
+                amounts['my_bet'] = bet_amount
+            
+            if amounts:
+                self.logger.info(f"💰 Montants: Pot={amounts.get('pot', 0)}, Stack={amounts.get('my_stack', 0)}, Bet={amounts.get('my_bet', 0)}")
+            else:
+                self.logger.debug("💰 Aucun montant detecte")
+                
+        except Exception as e:
+            self.logger.error(f"Erreur detection montants: {e}")
+
+    def _detect_positions_complete(self, captured_regions: Dict):
+        """Détection complète des positions"""
+        try:
+            positions = {}
+            
+            # Dealer buttons
+            dealer_regions = ['my_dealer_button', 'opponent1_dealer_button', 'opponent2_dealer_button']
+            for region_name in dealer_regions:
+                if region_name in captured_regions:
+                    # Vérifier si le bouton dealer est visible
+                    if self._is_button_visible_fast(captured_regions[region_name]):
+                        player = region_name.replace('_dealer_button', '')
+                        positions[player] = 'dealer'
+            
+            if positions:
+                self.logger.info(f"🎯 Positions: {positions}")
+            else:
+                self.logger.debug("🎯 Aucune position detectee")
+                
+        except Exception as e:
+            self.logger.error(f"Erreur detection positions: {e}")
+
+    def _detect_timers_complete(self, captured_regions: Dict):
+        """Détection complète des timers"""
+        try:
+            timers = {}
+            
+            # Timer des blinds
+            if 'blinds_timer' in captured_regions:
+                timer_text = self.image_analyzer.extract_text(captured_regions['blinds_timer'])
+                timer_value = self._parse_timer(timer_text) if timer_text else 300
+                timers['blinds'] = timer_value
+            
+            if timers:
+                self.logger.info(f"⏰ Timers: Blinds={timers.get('blinds', 0)}s")
+            else:
+                self.logger.debug("⏰ Aucun timer detecte")
+                
+        except Exception as e:
+            self.logger.error(f"Erreur detection timers: {e}")
     
     def _on_new_hand(self):
         """Appelé quand une nouvelle main est détectée"""
@@ -2411,7 +2629,7 @@ class PokerAgent:
                 if isinstance(card, str) and len(card) >= 2:
                     rank = card[0]
                     suit = card[1] if len(card) > 1 else '?'
-                    if suit in '♠♥♦♣':
+                    if suit in 'SHCD':  # S=♠, H=♥, C=♣, D=♦
                         valid_cards.append(card)
             
             if not valid_cards:
@@ -2814,6 +3032,75 @@ class PokerAgent:
                 self.performance_metrics['cache_misses'] += 1
         except Exception as e:
             self.logger.debug(f"Erreur metriques cache: {e}")
+
+    def _check_and_click_play_020_button(self, captured_regions: Dict) -> bool:
+        """Vérifie si le bouton "Jouer 0,20€" est présent et clique dessus si oui."""
+        try:
+            # 1. PRIORITÉ: Utiliser les coordonnées calibrées
+            region_info = self.screen_capture.get_region_info('play_020_button')
+            if region_info:
+                x, y = region_info['x'], region_info['y']
+                width, height = region_info['width'], region_info['height']
+                
+                # Capturer la région calibrée
+                play_020_image = self.screen_capture.capture_region('play_020_button')
+                if play_020_image is not None:
+                    # VALIDATION OCR AVANT CLIC
+                    text = self.image_analyzer.extract_text(play_020_image)
+                    self.logger.debug(f"Texte detecte dans play_020_button: '{text}'")
+                    
+                    # Vérifier si le texte contient un mot-clé "Jouer" ou "0,20"
+                    play_020_keywords = ['jouer', '0,20', '0.20', 'play', '0.20€', '0,20€']
+                    found_keyword = None
+                    
+                    for keyword in play_020_keywords:
+                        if keyword.lower() in text.lower():
+                            found_keyword = keyword
+                            break
+                    
+                    if found_keyword:
+                        self.logger.info(f"Bouton 'Jouer 0,20€' confirme (mot-cle: '{found_keyword}')")
+                        
+                        # Calculer le centre du bouton calibré
+                        center_x = x + width // 2
+                        center_y = y + height // 2
+                        
+                        # Cliquer sur le bouton calibré
+                        self.logger.info(f"CLIC sur 'Jouer 0,20€' a ({center_x}, {center_y})")
+                        self.automation.click_at_position(center_x, center_y)
+                        
+                        self.logger.info("NOUVELLE PARTIE LANCEE - MODE POKER ULTRA-REACTIF ACTIVÉ!")
+                        return True
+                    else:
+                        self.logger.debug(f"Aucun mot-cle 'Jouer 0,20€' trouve dans le texte: '{text}'")
+                else:
+                    self.logger.debug("Region 'play_020_button' non trouvee - pas de fallback OCR")
+            else:
+                self.logger.debug("Coordonnees 'play_020_button' non trouvees")
+            
+            # 2. FALLBACK: Détection par template matching
+            try:
+                # Capturer l'écran complet pour la détection
+                full_screenshot = self.screen_capture.capture_full_screen()
+                if full_screenshot is not None:
+                    # Utiliser le détecteur de boutons pour détecter le bouton play_020
+                    play_button = self.button_detector.detect_play_020_button(full_screenshot)
+                    if play_button:
+                        # Cliquer sur le bouton détecté
+                        center_x, center_y = play_button.coordinates
+                        self.logger.info(f"CLIC sur 'Jouer 0,20€' detecte a ({center_x}, {center_y})")
+                        self.automation.click_at_position(center_x, center_y)
+                        
+                        self.logger.info("NOUVELLE PARTIE LANCEE - MODE POKER ULTRA-REACTIF ACTIVÉ!")
+                        return True
+            except Exception as e:
+                self.logger.debug(f"Erreur detection template play_020: {e}")
+            
+            return False
+            
+        except Exception as e:
+            self.logger.error(f"Erreur lors de la tentative de clic sur le bouton 'Jouer 0,20€': {e}")
+            return False
 
 def main():
     """Point d'entrée principal"""

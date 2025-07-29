@@ -1,24 +1,33 @@
 """
-🔥 Stratégie Agressive - Poker IA
-=================================
+Module de Stratégie Agressive - IA Poker
+========================================
 
-Nouvelle stratégie ultra-agressive pour maximiser les gains :
-- All-in sur mains fortes
-- Bluff fréquent
-- Relances agressives
-- Exploitation des faiblesses adverses
+Ce module implémente une stratégie de poker agressive et intelligente :
+- Décisions basées sur la force de main
+- Exploitation de la position
+- Gestion du stack et des cotes
+- Bluff intelligent
+- Adaptation au contexte
 
 FONCTIONNALITÉS
 ===============
 
-✅ Décisions ultra-agressives
-✅ Bluff intelligent
-✅ Exploitation de position
-✅ Gestion du stack
-✅ Adaptation au contexte
+- Decisions ultra-agressives
+- Bluff intelligent
+- Exploitation de position
+- Gestion du stack
+- Adaptation au contexte
 
-VERSION: 1.0.0
-DERNIÈRE MISE À JOUR: 2025-07-27
+MÉTHODES PRINCIPALES
+====================
+
+- make_decision() : Décision principale
+- calculate_hand_strength() : Évaluation de main
+- get_position_bonus() : Bonus de position
+- calculate_bet_size() : Taille de mise optimale
+
+VERSION: 2.0.0 - STRATÉGIE AVANCÉE
+DERNIÈRE MISE À JOUR: 2025-01-XX
 """
 
 import logging
@@ -58,7 +67,7 @@ class AggressiveStrategy:
         Prend une décision agressive basée sur le contexte
         """
         try:
-            self.logger.info(f"🔥 STRATÉGIE AGRESSIVE - Analyse du contexte")
+            self.logger.info(f"STRATÉGIE AGRESSIVE - Analyse du contexte")
             
             # Calculer la force de la main
             hand_strength = self._calculate_hand_strength(context.my_cards, context.community_cards)
@@ -145,7 +154,7 @@ class AggressiveStrategy:
 
     def _handle_strong_hand(self, context: GameContext, actions: List[str], strength: float) -> Dict:
         """Gestion des mains très fortes"""
-        self.logger.info(f"🔥 MAIN TRÈS FORTE - Agression maximale")
+        self.logger.info(f"MAIN TRÈS FORTE - Agression maximale")
         
         if 'all_in' in actions:
             return {'action': 'all_in', 'reason': 'Main très forte - all-in'}
@@ -158,7 +167,7 @@ class AggressiveStrategy:
 
     def _handle_good_hand(self, context: GameContext, actions: List[str], strength: float) -> Dict:
         """Gestion des mains fortes"""
-        self.logger.info(f"🔥 MAIN FORTE - Agression élevée")
+        self.logger.info(f"MAIN FORTE - Agression élevée")
         
         # Décision basée sur la position et le stack
         if context.position in ['BTN', 'CO'] and 'raise' in actions:
@@ -172,7 +181,7 @@ class AggressiveStrategy:
 
     def _handle_medium_hand(self, context: GameContext, actions: List[str], strength: float) -> Dict:
         """Gestion des mains moyennes"""
-        self.logger.info(f"🔥 MAIN MOYENNE - Agression modérée")
+        self.logger.info(f"MAIN MOYENNE - Agression modérée")
         
         # Bluff occasionnel en position
         if context.position in ['BTN', 'CO'] and self._should_bluff():
@@ -188,7 +197,7 @@ class AggressiveStrategy:
 
     def _handle_weak_hand(self, context: GameContext, actions: List[str], strength: float) -> Dict:
         """Gestion des mains faibles"""
-        self.logger.info(f"🔥 MAIN FAIBLE - Stratégie défensive")
+        self.logger.info(f"MAIN FAIBLE - Stratégie défensive")
         
         # Bluff agressif en position
         if context.position in ['BTN', 'CO'] and self._should_bluff():
@@ -231,10 +240,10 @@ class AggressiveStrategy:
             # Ajuster l'agression selon le win rate
             if win_rate > 0.6:
                 self.aggression_level = min(1.0, self.aggression_level + 0.1)
-                self.logger.info(f"🔥 Augmentation agression - Win rate: {win_rate:.2f}")
+                self.logger.info(f"Augmentation agression - Win rate: {win_rate:.2f}")
             elif win_rate < 0.4:
                 self.aggression_level = max(0.3, self.aggression_level - 0.1)
-                self.logger.info(f"🔥 Réduction agression - Win rate: {win_rate:.2f}")
+                self.logger.info(f"Réduction agression - Win rate: {win_rate:.2f}")
                 
         except Exception as e:
             self.logger.error(f"Erreur ajustement stratégie: {e}") 

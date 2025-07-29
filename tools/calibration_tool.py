@@ -19,7 +19,9 @@ class CalibrationTool:
     
     def __init__(self):
         self.sct = mss.mss()
-        self.regions = {
+        
+        # Coordonnées par défaut (fallback)
+        self.default_regions = {
             'hand_area': {'x': 512, 'y': 861, 'width': 240, 'height': 130, 'name': 'Zone cartes joueur'},
             'community_cards': {'x': 348, 'y': 597, 'width': 590, 'height': 170, 'name': 'Cartes communautaires'},
             'pot_area': {'x': 465, 'y': 510, 'width': 410, 'height': 70, 'name': 'Zone du pot'},
@@ -37,6 +39,7 @@ class CalibrationTool:
             'bet_slider': {'x': 747, 'y': 953, 'width': 360, 'height': 40, 'name': 'Slider de mise'},
             'bet_input': {'x': 1115, 'y': 952, 'width': 100, 'height': 25, 'name': 'Input de mise'},
             'new_hand_button': {'x': 599, 'y': 979, 'width': 100, 'height': 30, 'name': 'Bouton New Hand'},
+            'play_020_button': {'x': 650, 'y': 950, 'width': 120, 'height': 40, 'name': 'Bouton Jouer 0,20€'},
             'resume_button': {'x': 600, 'y': 400, 'width': 120, 'height': 40, 'name': 'Bouton Reprendre'},
             'blinds_area': {'x': 1166, 'y': 326, 'width': 120, 'height': 30, 'name': 'Zone des blinds'},
             'blinds_timer': {'x': 1168, 'y': 299, 'width': 100, 'height': 20, 'name': 'Timer des blinds'},
@@ -44,6 +47,15 @@ class CalibrationTool:
             'opponent1_dealer_button': {'x': 210, 'y': 545, 'width': 50, 'height': 50, 'name': 'Bouton dealer (adv1)'},
             'opponent2_dealer_button': {'x': 1012, 'y': 547, 'width': 80, 'height': 50, 'name': 'Bouton dealer (adv2)'}
         }
+        
+        # Initialiser les régions avec les coordonnées par défaut
+        self.regions = {}
+        for region_name, region_data in self.default_regions.items():
+            self.regions[region_name] = region_data.copy()
+        
+        # NOUVEAU: Charger automatiquement les coordonnées calibrées
+        self.load_configuration()
+        
         self.current_region = None
         self.dragging = False
         self.start_pos = None
@@ -162,9 +174,17 @@ class CalibrationTool:
                     config = json.load(f)
                 
                 # Mettre à jour les régions existantes
+                loaded_count = 0
                 for region_name, coords in config.items():
                     if region_name in self.regions:
-                        self.regions[region_name].update(coords)
+                        # Mettre à jour les coordonnées mais garder le nom
+                        self.regions[region_name].update({
+                            'x': coords['x'],
+                            'y': coords['y'],
+                            'width': coords['width'],
+                            'height': coords['height']
+                        })
+                        loaded_count += 1
                     else:
                         # Ajouter les nouvelles régions manquantes
                         self.regions[region_name] = {
@@ -175,13 +195,15 @@ class CalibrationTool:
                             'name': region_name.replace('_', ' ').title()  # Nom par défaut
                         }
                         print(f"Nouvelle région ajoutée: {region_name}")
+                        loaded_count += 1
                 
-                print(f"Configuration chargée depuis {filename} - {len(config)} régions")
+                print(f"✅ Configuration chargée depuis {filename} - {loaded_count} régions mises à jour")
             else:
-                print(f"Fichier {filename} non trouvé")
+                print(f"⚠️ Fichier {filename} non trouvé - utilisation des coordonnées par défaut")
                 
         except Exception as e:
-            print(f"Erreur chargement: {e}")
+            print(f"❌ Erreur chargement: {e}")
+            print("Utilisation des coordonnées par défaut")
     
     def print_regions(self):
         """Affiche toutes les régions disponibles"""
@@ -193,6 +215,7 @@ class CalibrationTool:
     def run_calibration(self):
         """Lance l'outil de calibration interactif"""
         print("=== OUTIL DE CALIBRATION ===")
+        print("✅ Coordonnées calibrées chargées automatiquement")
         print("Instructions:")
         print("1. Cliquez sur une région pour la sélectionner (devient verte)")
         print("2. Glissez pour déplacer la région")

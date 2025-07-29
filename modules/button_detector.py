@@ -1,45 +1,32 @@
 """
-🎯 Module de Détection des Boutons - Interface Utilisateur
-=========================================================
+Module de Detection des Boutons - Interface Utilisateur
+======================================================
 
-Ce module gère la reconnaissance des boutons d'action du poker :
-- Détection des boutons (Fold, Call, Raise, Check, All-in)
-- Validation OCR des boutons détectés
-- Gestion des états (enabled/disabled)
-- Templates de boutons personnalisés
+Ce module gère la détection des boutons d'action dans l'interface Betclic Poker :
+- Fold, Call, Check, Raise, All-in
+- Boutons de navigation (New Hand, Resume)
+- Couronne de victoire
+- Validation OCR pour éviter les faux positifs
 
 FONCTIONNALITÉS
 ===============
 
-✅ Détection multi-templates des boutons
-✅ Validation OCR pour éviter les faux positifs
-✅ Gestion des états enabled/disabled
-✅ Templates personnalisés pour Betclic Poker
-✅ Détection de la couronne de victoire
+- Detection multi-templates des boutons
+- Validation OCR pour éviter les faux positifs
+- Gestion des états enabled/disabled
+- Templates personnalisés pour Betclic Poker
+- Detection de la couronne de victoire
 
-BOUTONS DÉTECTÉS
-=================
+MÉTHODES PRINCIPALES
+====================
 
-- fold_button : Abandonner la main
-- call_button : Suivre la mise
-- raise_button : Relancer
-- check_button : Passer
-- all_in_button : Tout miser
-- bet_button : Miser
+- detect_buttons() : Détection principale des boutons
+- validate_button_ocr() : Validation OCR des boutons
+- detect_winner_crown() : Détection de la couronne
+- is_button_visible() : Vérification de visibilité
 
-TEMPLATES
-=========
-
-Les templates de boutons sont chargés depuis templates/buttons/ :
-- fold_button.png
-- call_button.png (cann_button.png)
-- raise_button.png
-- check_button.png
-- all_in_button.png
-- winner2.png (couronne de victoire)
-
-VERSION: 2.0.0
-DERNIÈRE MISE À JOUR: 2025-07-27
+VERSION: 3.0.0 - TEMPLATES OPTIMISÉS
+DERNIÈRE MISE À JOUR: 2025-01-XX
 """
 
 import cv2
@@ -140,7 +127,8 @@ class ButtonDetector:
         # Templates spéciaux avec leurs chemins
         special_files = {
             'winner_crown': 'winner2.png',  # Couronne de victoire
-            'winner': 'winner.png'  # Indicateur de victoire existant
+            'winner': 'winner.png',  # Indicateur de victoire existant
+            'play_020': 'play_020_button.png'  # Bouton Jouer 0,20€
         }
         
         for template_name, filename in special_files.items():
@@ -278,10 +266,10 @@ class ButtonDetector:
             keywords = button_keywords.get(button_type, [])
             for keyword in keywords:
                 if keyword in text:
-                    self.logger.debug(f"✅ Validation OCR réussie pour {button_type}: '{text}'")
+                    self.logger.debug(f"Validation OCR reussie pour {button_type}: '{text}'")
                     return True
             
-            self.logger.debug(f"❌ Validation OCR échouée pour {button_type}: '{text}'")
+            self.logger.debug(f"Validation OCR echouee pour {button_type}: '{text}'")
             return False
             
         except Exception as e:
@@ -445,11 +433,58 @@ class ButtonDetector:
             confidence_threshold = 0.7
             
             if max_val >= confidence_threshold:
-                self.logger.info(f"🏆 INDICATEUR DE VICTOIRE DÉTECTÉ! (confiance: {max_val:.2f})")
+                self.logger.info(f"INDICATEUR DE VICTOIRE DÉTECTÉ! (confiance: {max_val:.2f})")
                 return True
             else:
                 return False
                 
         except Exception as e:
             self.logger.error(f"Erreur détection indicateur de victoire: {e}")
-            return False 
+            return False
+    
+    def detect_play_020_button(self, screenshot: np.ndarray) -> Optional[UIButton]:
+        """
+        Détecte le bouton "Jouer 0,20€"
+        Retourne un UIButton si le bouton est détecté
+        """
+        try:
+            if 'play_020' not in self.special_templates:
+                self.logger.warning("Template bouton Jouer 0,20€ non disponible")
+                return None
+            
+            play_template = self.special_templates['play_020']
+            
+            # Recherche dans toute l'image
+            result = cv2.matchTemplate(screenshot, play_template, cv2.TM_CCOEFF_NORMED)
+            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+            
+            # Seuil de confiance pour le bouton
+            confidence_threshold = 0.7
+            
+            if max_val >= confidence_threshold:
+                # Calculer le centre du bouton
+                template_height, template_width = play_template.shape[:2]
+                center_x = max_loc[0] + template_width // 2
+                center_y = max_loc[1] + template_height // 2
+                
+                # Validation OCR optionnelle
+                button_region = screenshot[max_loc[1]:max_loc[1] + template_height, 
+                                         max_loc[0]:max_loc[0] + template_width]
+                
+                # Créer l'objet UIButton
+                button = UIButton(
+                    name="play_020",
+                    coordinates=(center_x, center_y),
+                    confidence=max_val,
+                    enabled=True,
+                    text="Jouer 0,20€"
+                )
+                
+                self.logger.info(f"Bouton Jouer 0,20€ détecté! (confiance: {max_val:.2f}) à ({center_x}, {center_y})")
+                return button
+            else:
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"Erreur détection bouton Jouer 0,20€: {e}")
+            return None 
